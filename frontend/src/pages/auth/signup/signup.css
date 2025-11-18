@@ -1,0 +1,36 @@
+.signup-page {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--mui-palette-background-default, #121212);
+  }
+  
+  .signup-card {
+    padding: 32px;
+    width: 350px;
+    border-radius: 16px;
+    background-color: var(--mui-palette-background-paper, #1e1e1e); /* Dark card background */
+  }
+  
+  .signup-button {
+    margin-top: 16px;
+  }
+  
+  .field .MuiInputBase-input {
+    color: #fff; /* White input text */
+  }
+  
+  .field .MuiInputLabel-root {
+    color: #ccc; /* Lighter grey label text */
+  }
+  
+  .field .MuiOutlinedInput-notchedOutline {
+    border-color: #666; /* Border color in dark mode */
+  }
+  
+  .field .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+    border-color: #90caf9; /* Border hover effect */
+  }
+  

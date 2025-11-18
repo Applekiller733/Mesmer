@@ -1,0 +1,16 @@
+.song-upload{
+    min-height: 100vh;
+    display: flex;           
+  flex-direction: column;   
+  align-items: center;      
+  justify-content: center;
+  background-color: var(--mui-palette-background-default, #121212);
+}
+
+.song-upload-paper {
+    align-self: center;
+    grid-column:2;
+    grid-row: 2;
+    place-self: center;
+    justify-content: center;
+  }

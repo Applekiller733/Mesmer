@@ -1,0 +1,140 @@
+/* song.css */
+.songcomponent {
+    width: 320px;
+    height: 450px;
+    padding: 24px;
+    border-radius: 12px;
+    background-color: var(--mui-palette-background-paper, #1e1e1e);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.text {
+    color: #ffffff;
+    text-align: left;
+}
+
+.text h4 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.2;
+    overflow:auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.text h5 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #b0b0b0;
+    margin: 4px 0 0;
+    line-height: 1.3;
+    overflow: auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upvotes-text {
+    padding-left: 8px;
+    font-size: 0.9rem;
+    color: #ffffff;
+}
+
+/* AudioWidget styles */
+.audiowidget {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    overflow:visible;
+    background-color: #2a2a2a;
+}
+
+.audiowidget-overlapping-items {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.songimage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+.audiowidget-overlapping-button {
+    position: absolute;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 50%;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    z-index: 1; 
+    border: 2px solid rgba(255, 255, 255, 0.3); 
+}
+
+.audiowidget-overlapping-button:hover {
+    background-color: rgba(0, 0, 0, 1);
+    transform: scale(1.1);
+}
+
+.audiowidget-overlapping-button-play {
+    bottom: 4rem;
+}
+
+.audiowidget-overlapping-button-revert {
+    bottom: 4rem;
+    left: 12rem;
+}
+
+/* VideoWidget styles */
+.videowidget {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+}
+
+.videowidget .react-player {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Button styles for consistency */
+button {
+    text-transform: none;
+    font-weight: 500;
+    padding: 8px 16px; /* Adjusted padding to fit within card */
+    min-width: 0; /* Prevent button from expanding too much */
+    align-self: flex-start; /* Align button to start of flex container */
+}
+
+button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .songcomponent {
+        max-width: 100%;
+        padding: 16px;
+    }
+
+    .text h4 {
+        font-size: 1.3rem;
+    }
+
+    .text h5 {
+        font-size: 1rem;
+    }
+
+    .audiowidget-overlapping-button svg {
+        font-size: 36px;
+    }
+}

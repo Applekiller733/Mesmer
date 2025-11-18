@@ -1,0 +1,27 @@
+
+.songimage{
+    display:block;
+    width:140px;
+    height:140px;
+    padding:0;
+    margin:0;
+}
+
+.audiowidget{
+    
+}
+
+.audiowidget-overlapping-items{
+    position:relative;
+}
+
+.audiowidget-overlapping-button{
+    position:absolute;
+    bottom: 3rem;
+    padding:0;
+    margin:0;
+}
+
+.text {
+    color: white;
+}

@@ -1,0 +1,9 @@
+
+.smallprofile{
+    padding: 1rem;
+}
+
+.profile-picture {
+    max-height: 300px;
+    max-width: 300px;
+}
