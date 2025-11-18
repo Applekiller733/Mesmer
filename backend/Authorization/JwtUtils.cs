@@ -1,0 +1,93 @@
+﻿namespace SongAppApi.Authorization
+{
+    using Microsoft.Extensions.Options;
+    using Microsoft.IdentityModel.Tokens;
+    using System.IdentityModel.Tokens.Jwt;
+    using System.Security.Claims;
+    using System.Security.Cryptography;
+    using System.Text;
+    using SongAppApi.Entities;
+    using SongAppApi.Helpers;
+
+    public interface IJwtUtils
+    {
+        public string GenerateJwtToken(Account account);
+        public int? ValidateJwtToken(string token);
+        public RefreshToken GenerateRefreshToken(string ipAddress);
+    }
+    public class JwtUtils : IJwtUtils
+    {
+        private readonly DataContext _context;
+        private readonly AppSettings _settings;
+
+        public JwtUtils(DataContext context, IOptions<AppSettings> appSettings)
+        {
+            _context = context;
+            _settings = appSettings.Value;
+        }
+
+        public string GenerateJwtToken(Account account)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_settings.Secret);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[] { new Claim("id", account.Id.ToString()) }),
+                Expires = DateTime.UtcNow.AddMinutes(15),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+
+        public int? ValidateJwtToken(string token)
+        {
+            if (token == null)
+                return null;
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_settings.Secret);
+            try
+            {
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    // set clockskew to zero so tokens expire exactly at token expiration time (instead of 5 minutes later)
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == "id").Value);
+
+                return accountId;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public RefreshToken GenerateRefreshToken(string ipAddress)
+        {
+            var refreshToken = new RefreshToken
+            {
+                // token is a cryptographically strong random sequence of values
+                Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(64)),
+                Expires = DateTime.UtcNow.AddDays(7),
+                Created = DateTime.UtcNow,
+                CreatedByIp = ipAddress
+            };
+
+            // ensure token is unique
+            var tokenIsUnique = !_context.Accounts.Any(a => a.RefreshTokens.Any(t => t.Token == refreshToken.Token));
+
+            if (!tokenIsUnique)
+                return GenerateRefreshToken(ipAddress);
+
+            return refreshToken;
+        }
+    }
+}
