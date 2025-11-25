@@ -20,60 +20,109 @@ namespace SongAppApi.Controllers
         [HttpGet("{id:int}")]
         public ActionResult<PlaylistResponse> Get(int id)
         {
-            var response = _service.Get(id);
-            return Ok(response);
+            try
+            {
+                var response = _service.Get(id);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<PlaylistResponse>> GetAll()
         {
-            var response = _service.GetAll();
-            return Ok(response);
+            try
+            {
+                var response = _service.GetAll();
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            }
         }
 
         [HttpGet("made-by/{accountid:int}")]
         public ActionResult<IEnumerable<PlaylistResponse>> GetAllCreatedByAccount(int accountid)
         {
-            var response = _service.GetCreatedByAccount(accountid);
-            return Ok(response);
+            try
+            {
+                var response = _service.GetCreatedByAccount(accountid);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("saved-by/{accountid:int}")]
         public ActionResult<IEnumerable<PlaylistResponse>> GetAllSavedByAccount(int accountid)
         {
-            var response = _service.GetSavedByAccount(accountid);
-            return Ok(response);
+            try
+            {
+                var response = _service.GetSavedByAccount(accountid);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("create-playlist")]
         public ActionResult<PlaylistResponse> CreatePlaylist(CreatePlaylistRequest request)
         {
-            //todo test if it works
-            var response = _service.Create(request, Account);
-            return Ok(response);
+            try
+            {
+                //todo test if it works
+                var response = _service.Create(request, Account);
+                return Ok(response);
+            }
+            catch(Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         //todo remove the id from the URL and instead add to request?
         [HttpPut]
         public ActionResult<PlaylistResponse> UpdatePlaylist(UpdatePlaylistRequest request)
         {
-            var playlist = _service.Get(request.Id);
-            if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
+            try
+            {
+                var playlist = _service.Get(request.Id);
+                if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
 
-            var response = _service.Update(request.Id, request);
-            return Ok(response);
+                var response = _service.Update(request.Id, request);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new {message = ex.Message});
+            }
         }
 
         [HttpDelete]
         public ActionResult Delete(DeletePlaylistRequest request)
         {
-            var playlist = _service.Get(request.Id);
-            if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
-            
-            _service.Delete(request.Id);
-            return Ok(new { message = "Playlist successfully deleted" });
+            try
+            {
+                var playlist = _service.Get(request.Id);
+                if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
+
+                _service.Delete(request.Id);
+                return Ok(new { message = "Playlist successfully deleted" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

@@ -24,54 +24,97 @@ namespace SongAppApi.Controllers
         [HttpGet]
         public ActionResult<IEnumerable<SongResponse>> GetAll()
         {
-            var response = _service.GetAll();
-            return Ok(response);
+            try
+            {
+                var response = _service.GetAll();
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpGet("song-ids")]
         public ActionResult<IEnumerable<int>> GetAllIds()
         {
-            var response = _service.GetAllIds();
-            return Ok(response);
+            try
+            {
+                var response = _service.GetAllIds();
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpGet("{id:int}")]
         public ActionResult<SongResponse> Get(int id)
         {
-            var response = _service.Get(id);
-            return Ok(response);
+            try
+            {
+                var response = _service.Get(id);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
+        
 
         [HttpPost("create-song")]
         public ActionResult<SongResponse> Create(CreateSongRequest request)
         {
-            //todo test if it works and add new role for user uploader?
-            if (Account.Role != Role.Admin)
-                return Unauthorized(new {message = "Unauthorized"});
-            var response = _service.Create(request, Account);
-            return Ok(response);
+            try
+            {
+                //todo test if it works and add new role for user uploader?
+                if (Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
+                var response = _service.Create(request, Account);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete]
         public ActionResult Delete(DeleteSongRequest request)
         {
-            var song = _service.Get(request.Id);
+            try
+            {
+                var song = _service.Get(request.Id);
 
-            //todo check if createdby is properly fetched ie not always null
-            if (song.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
+                //todo check if createdby is properly fetched ie not always null
+                if (song.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
 
-            _service.Delete(request.Id);
-            return Ok(new { message = "Song deleted successfully" });
+                _service.Delete(request.Id);
+                return Ok(new { message = "Song deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("flip-like")]
         public ActionResult FlipLike(FlipLikeRequest request)
         {
-            var response = _service.FlipLike(request.Id, Account);
-            return Ok(response);
+            try
+            {
+                var response = _service.FlipLike(request.Id, Account);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

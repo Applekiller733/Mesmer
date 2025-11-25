@@ -26,76 +26,134 @@
         [HttpPost("authenticate")]
         public ActionResult<AuthenticateResponse> Authenticate(AuthenticateRequest model)
         {
-            var response = _accountService.Authenticate(model, ipAddress());
-            setTokenCookie(response.RefreshToken);
-            return Ok(response);
+            try
+            {
+                var response = _accountService.Authenticate(model, ipAddress());
+                setTokenCookie(response.RefreshToken);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("refresh-token")]
         public ActionResult<AuthenticateResponse> RefreshToken()
         {
-            var refreshToken = Request.Cookies["refreshToken"];
-            var response = _accountService.RefreshToken(refreshToken, ipAddress());
-            setTokenCookie(response.RefreshToken);
-            return Ok(response);
+            try
+            {
+                var refreshToken = Request.Cookies["refreshToken"];
+                var response = _accountService.RefreshToken(refreshToken, ipAddress());
+                setTokenCookie(response.RefreshToken);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("revoke-token")]
         public IActionResult RevokeToken()
         {
-            // accept token from request body or cookie
-            var token = Request.Cookies["refreshToken"];
+            try
+            {
+                // accept token from request body or cookie
+                var token = Request.Cookies["refreshToken"];
 
-            if (string.IsNullOrEmpty(token))
-                return BadRequest(new { message = "Token is required" });
+                if (string.IsNullOrEmpty(token))
+                    return BadRequest(new { message = "Token is required" });
 
-            // users can revoke their own tokens and admins can revoke any tokens
-            if (!Account.OwnsToken(token) && Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
+                // users can revoke their own tokens and admins can revoke any tokens
+                if (!Account.OwnsToken(token) && Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
 
-            _accountService.RevokeToken(token, ipAddress());
-            return Ok(new { message = "Token revoked" });
+                _accountService.RevokeToken(token, ipAddress());
+                return Ok(new { message = "Token revoked" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("register")]
         public IActionResult Register(Models.Accounts.RegisterRequest model)
         {
-            _accountService.Register(model, Request.Headers["origin"]);
-            return Ok(new { message = "Registration successful, please check your email for verification instructions" });
+            try
+            {
+                _accountService.Register(model, Request.Headers["origin"]);
+                return Ok(new
+                    { message = "Registration successful, please check your email for verification instructions" });
+
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("verify-email")]
         public IActionResult VerifyEmail(VerifyEmailRequest model)
         {
-            _accountService.VerifyEmail(model.Token);
-            return Ok(new { message = "Verification successful, you can now login" });
+            try
+            {
+                _accountService.VerifyEmail(model.Token);
+                return Ok(new { message = "Verification successful, you can now login" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("forgot-password")]
         public IActionResult ForgotPassword(Models.Accounts.ForgotPasswordRequest model)
         {
-            _accountService.ForgotPassword(model, Request.Headers["origin"]);
-            return Ok(new { message = "Please check your email for password reset instructions" });
+            try
+            {
+                _accountService.ForgotPassword(model, Request.Headers["origin"]);
+                return Ok(new { message = "Please check your email for password reset instructions" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("validate-reset-token")]
         public IActionResult ValidateResetToken(ValidateResetTokenRequest model)
         {
-            _accountService.ValidateResetToken(model);
-            return Ok(new { message = "Token is valid" });
+            try
+            {
+                _accountService.ValidateResetToken(model);
+                return Ok(new { message = "Token is valid" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpPost("reset-password")]
         public IActionResult ResetPassword(Models.Accounts.ResetPasswordRequest model)
         {
-            _accountService.ResetPassword(model);
-            return Ok(new { message = "Password reset successful, you can now login" });
+            try
+            {
+                _accountService.ResetPassword(model);
+                return Ok(new { message = "Password reset successful, you can now login" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [Authorize(Role.Admin)]
@@ -109,105 +167,148 @@
         [HttpGet("{id:int}")]
         public ActionResult<AccountResponse> GetById(int id)
         {
-            // users can get their own account and admins can get any account
-            if (id != Account.Id && Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
+            try
+            {
+                // users can get their own account and admins can get any account
+                if (id != Account.Id && Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
 
-            var account = _accountService.GetById(id);
-            return Ok(account);
+                var account = _accountService.GetById(id);
+                return Ok(account);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpGet("profile/{id:int}")]
         public ActionResult<AccountProfileResponse> GetProfileById(int id)
         {
-            var profile = _accountService.GetProfileById(id);
-            return Ok(profile);
+            try
+            {
+                var profile = _accountService.GetProfileById(id);
+                return Ok(profile);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [AllowAnonymous]
         [HttpGet("profile/{id:int}/picture")]
         public ActionResult<AccountProfilePictureResponse> GetProfilePictureById(int id)
         {
-            Console.WriteLine(id);
-
-            var fileid = _accountService.GetProfilePictureId(id);
-            if (fileid == null)
+            try
             {
-                Console.WriteLine("File ID IS NULL");
-                return NotFound();
-            }
-            var profilepicture = _fileService.GetFileById((int)fileid);
-            //Console.WriteLine(System.IO.File.Exists(profilepicture.FilePath));
-            if (profilepicture == null || !System.IO.File.Exists(profilepicture.FilePath))
-                return NotFound();
+                Console.WriteLine(id);
 
-            var stream = new FileStream(profilepicture.FilePath, FileMode.Open, FileAccess.Read);
-            var provider = new FileExtensionContentTypeProvider();
-            if (!provider.TryGetContentType(profilepicture.FileName, out var contentType))
-                contentType = "application/octet-stream";
-            return File(stream, contentType, profilepicture.FileName);
+                var fileid = _accountService.GetProfilePictureId(id);
+                if (fileid == null)
+                {
+                    Console.WriteLine("File ID IS NULL");
+                    return NotFound();
+                }
+
+                var profilepicture = _fileService.GetFileById((int)fileid);
+                //Console.WriteLine(System.IO.File.Exists(profilepicture.FilePath));
+                if (profilepicture == null || !System.IO.File.Exists(profilepicture.FilePath))
+                    return NotFound();
+
+                var stream = new FileStream(profilepicture.FilePath, FileMode.Open, FileAccess.Read);
+                var provider = new FileExtensionContentTypeProvider();
+                if (!provider.TryGetContentType(profilepicture.FileName, out var contentType))
+                    contentType = "application/octet-stream";
+                return File(stream, contentType, profilepicture.FileName);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [Authorize(Role.Admin)]
         [HttpPost]
         public ActionResult<AccountResponse> Create(CreateRequest model)
         {
-            var account = _accountService.Create(model);
-            return Ok(account);
+            try
+            {
+                var account = _accountService.Create(model);
+                return Ok(account);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPut]
         public ActionResult<AccountResponse> Update([FromForm] UpdateRequest model)
         {
-            //todo ensure new GUID name is created for each file
-            // users can update their own account and admins can update any account
-
-            //todo ensure the function works with the changed UpdateRequest
-            if (model.Id != Account.Id && Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
-
-            //if (model.Id == null)
-            //    return BadRequest(new { message = "Id cannot be null"});
-
-            // only admins can update role
-            if (Account.Role != Role.Admin)
-                model.Role = null;
-
-            if (model.ProfilePicture != null)
+            try
             {
-                Console.WriteLine("MODEL.PROFILEPICTURE IS -NOT- NULL");
-                var filenameGUID = Guid.NewGuid().ToString();
-                model.ProfilePicture.FileName = filenameGUID;
-                var subfolderpath = Path.Combine("ProfilePictures",
-                    Account.Id.ToString());
-                //_fileService.CreateSubFolders(subfolderpath);
-                //model.ProfilePicture.FileName = newfilename;
-                var fileid = _fileService.Create(model.ProfilePicture, subfolderpath);
-                var file = _fileService.GetFileById(fileid);
-                var account = _accountService.Update(model.Id, model, file);
-                return Ok(account);
-            }
-            else
-            {
-                Console.WriteLine("MODEL.PROFILEPICTURE IS NULL");
-                var account = _accountService.Update(model.Id, model);
-                return Ok(account);
-            }
-            //todo maybe refactor
+                //todo ensure new GUID name is created for each file
+                // users can update their own account and admins can update any account
 
-            //return Ok(account);
+                //todo ensure the function works with the changed UpdateRequest
+                if (model.Id != Account.Id && Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
+
+                //if (model.Id == null)
+                //    return BadRequest(new { message = "Id cannot be null"});
+
+                // only admins can update role
+                if (Account.Role != Role.Admin)
+                    model.Role = null;
+
+                if (model.ProfilePicture != null)
+                {
+                    Console.WriteLine("MODEL.PROFILEPICTURE IS -NOT- NULL");
+                    var filenameGUID = Guid.NewGuid().ToString();
+                    model.ProfilePicture.FileName = filenameGUID;
+                    var subfolderpath = Path.Combine("ProfilePictures",
+                        Account.Id.ToString());
+                    //_fileService.CreateSubFolders(subfolderpath);
+                    //model.ProfilePicture.FileName = newfilename;
+                    var fileid = _fileService.Create(model.ProfilePicture, subfolderpath);
+                    var file = _fileService.GetFileById(fileid);
+                    var account = _accountService.Update(model.Id, model, file);
+                    return Ok(account);
+                }
+                else
+                {
+                    Console.WriteLine("MODEL.PROFILEPICTURE IS NULL");
+                    var account = _accountService.Update(model.Id, model);
+                    return Ok(account);
+                }
+                //todo maybe refactor
+
+                //return Ok(account);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete("{id:int}")]
         public IActionResult Delete(int id)
         {
-            // users can delete their own account and admins can delete any account
-            if (id != Account.Id && Account.Role != Role.Admin)
-                return Unauthorized(new { message = "Unauthorized" });
+            try
+            {
+                // users can delete their own account and admins can delete any account
+                if (id != Account.Id && Account.Role != Role.Admin)
+                    return Unauthorized(new { message = "Unauthorized" });
 
-            _accountService.Delete(id);
-            return Ok(new { message = "Account deleted successfully" });
+                _accountService.Delete(id);
+                return Ok(new { message = "Account deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // helper methods
