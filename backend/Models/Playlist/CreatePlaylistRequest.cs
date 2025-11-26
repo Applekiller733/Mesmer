@@ -6,6 +6,6 @@ namespace SongAppApi.Models.Playlist
     public class CreatePlaylistRequest
     {
         public string Name { get; set; }
-        public List<int> SongIds { get; set; }
+        public List<string> SongIds { get; set; }
     }
 }

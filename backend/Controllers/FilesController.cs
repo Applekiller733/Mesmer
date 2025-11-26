@@ -18,7 +18,7 @@ namespace SongAppApi.Controllers
             _fileService = fileService;
         }
         [HttpPost]
-        public ActionResult<int> Post([FromForm] FileModel file)
+        public ActionResult<string> Post([FromForm] FileModel file)
         {
             try
             {
@@ -32,7 +32,7 @@ namespace SongAppApi.Controllers
         }
 
         [HttpGet("{id}")]
-        public ActionResult Get(int id)
+        public ActionResult Get(string id)
         {
             try
             {

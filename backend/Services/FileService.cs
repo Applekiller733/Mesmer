@@ -9,9 +9,9 @@ namespace SongAppApi.Services
 {
     public interface IFileService
     {
-        int Create(FileModel file);
-        int Create(FileModel file, string subfolderpath);
-        File GetFileById(int id);
+        string Create(FileModel file);
+        string Create(FileModel file, string subfolderpath);
+        File GetFileById(string id);
         bool VerifyExistingDirectory(string path);
     }
     public class FileService : IFileService
@@ -32,7 +32,7 @@ namespace SongAppApi.Services
         }
 
 
-        public int Create(FileModel file)
+        public string Create(FileModel file)
         {
             if (file == null)
                 throw new ArgumentNullException(nameof(file));
@@ -55,10 +55,10 @@ namespace SongAppApi.Services
             _context.Files.Add(fileEF);
             _context.SaveChanges();
 
-            return fileEF.Id;
+            return fileEF.Id.ToString();
         }
 
-        public int Create(FileModel file, string subfolderpath)
+        public string Create(FileModel file, string subfolderpath)
         {
             if (file == null)
                 throw new ArgumentNullException(nameof(file));
@@ -83,11 +83,11 @@ namespace SongAppApi.Services
             _context.Files.Add(fileEF);
             _context.SaveChanges();
 
-            return fileEF.Id;
+            return fileEF.Id.ToString();
         }
 
 
-        public File GetFileById(int id)
+        public File GetFileById(string id)
         {
             var file = _context.Files.Find(id);
             if (file == null)

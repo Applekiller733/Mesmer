@@ -12,7 +12,7 @@
     public interface IJwtUtils
     {
         public string GenerateJwtToken(Account account);
-        public int? ValidateJwtToken(string token);
+        public string? ValidateJwtToken(string token);
         public RefreshToken GenerateRefreshToken(string ipAddress);
     }
     public class JwtUtils : IJwtUtils
@@ -40,7 +40,7 @@
             return tokenHandler.WriteToken(token);
         }
 
-        public int? ValidateJwtToken(string token)
+        public string? ValidateJwtToken(string token)
         {
             if (token == null)
                 return null;
@@ -60,7 +60,7 @@
                 }, out SecurityToken validatedToken);
 
                 var jwtToken = (JwtSecurityToken)validatedToken;
-                var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == "id").Value);
+                var accountId = jwtToken.Claims.First(x => x.Type == "id").Value;
 
                 return accountId;
             }

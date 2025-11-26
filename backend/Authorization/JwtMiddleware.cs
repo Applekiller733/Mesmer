@@ -19,8 +19,9 @@
             var accountId = jwtUtils.ValidateJwtToken(token);
             if (accountId != null)
             {
+                Guid accountIdGuid = Guid.Parse(accountId);
                 // attach account to context on successful jwt validation
-                context.Items["Account"] = await dataContext.Accounts.FindAsync(accountId.Value);
+                context.Items["Account"] = await dataContext.Accounts.FindAsync(accountIdGuid);
             }
 
             await _next(context);

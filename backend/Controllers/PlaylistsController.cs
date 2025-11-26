@@ -17,8 +17,8 @@ namespace SongAppApi.Controllers
             _service = service;
         }
 
-        [HttpGet("{id:int}")]
-        public ActionResult<PlaylistResponse> Get(int id)
+        [HttpGet("{id}")]
+        public ActionResult<PlaylistResponse> Get(string id)
         {
             try
             {
@@ -45,8 +45,8 @@ namespace SongAppApi.Controllers
             }
         }
 
-        [HttpGet("made-by/{accountid:int}")]
-        public ActionResult<IEnumerable<PlaylistResponse>> GetAllCreatedByAccount(int accountid)
+        [HttpGet("made-by/{accountid}")]
+        public ActionResult<IEnumerable<PlaylistResponse>> GetAllCreatedByAccount(string accountid)
         {
             try
             {
@@ -59,8 +59,8 @@ namespace SongAppApi.Controllers
             }
         }
 
-        [HttpGet("saved-by/{accountid:int}")]
-        public ActionResult<IEnumerable<PlaylistResponse>> GetAllSavedByAccount(int accountid)
+        [HttpGet("saved-by/{accountid}")]
+        public ActionResult<IEnumerable<PlaylistResponse>> GetAllSavedByAccount(string accountid)
         {
             try
             {
@@ -95,7 +95,7 @@ namespace SongAppApi.Controllers
             try
             {
                 var playlist = _service.Get(request.Id);
-                if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                if (playlist.CreatedBy.Id != Account.Id.ToString() || Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 var response = _service.Update(request.Id, request);
@@ -107,13 +107,26 @@ namespace SongAppApi.Controllers
             }
         }
 
+        //[HttpPost("flip-is-public")]
+        //public ActionResult FlipIsPublic()
+        //{
+        //    try
+        //    {
+                
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return BadRequest(new { message = ex.Message });
+        //    }
+        //}
+
         [HttpDelete]
         public ActionResult Delete(DeletePlaylistRequest request)
         {
             try
             {
                 var playlist = _service.Get(request.Id);
-                if (playlist.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                if (playlist.CreatedBy.Id != Account.Id.ToString() || Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 _service.Delete(request.Id);

@@ -15,7 +15,7 @@ namespace SongAppApi.Helpers.Resolvers
 
         public List<Song> Resolve(CreatePlaylistRequest source, Playlist destination, List<Song> destMember, ResolutionContext context)
         {
-            return _context.Songs.Where(s => source.SongIds.Contains(s.Id)).ToList();
+            return _context.Songs.Where(s => source.SongIds.Contains(s.Id.ToString())).ToList();
         }
     }
 
@@ -30,7 +30,7 @@ namespace SongAppApi.Helpers.Resolvers
 
         public List<Song> Resolve(UpdatePlaylistRequest source, Playlist destination, List<Song> destMember, ResolutionContext context)
         {
-            return _context.Songs.Where(s => source.SongIds.Contains(s.Id)).ToList();
+            return _context.Songs.Where(s => source.SongIds.Contains(s.Id.ToString())).ToList();
         }
     }
 }

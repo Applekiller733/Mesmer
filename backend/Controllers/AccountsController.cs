@@ -160,17 +160,24 @@
         [HttpGet]
         public ActionResult<IEnumerable<AccountResponse>> GetAll()
         {
-            var accounts = _accountService.GetAll();
-            return Ok(accounts);
+            try
+            {
+                var accounts = _accountService.GetAll();
+                return Ok(accounts);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
-        [HttpGet("{id:int}")]
-        public ActionResult<AccountResponse> GetById(int id)
+        [HttpGet("{id}")]
+        public ActionResult<AccountResponse> GetById(string id)
         {
             try
             {
                 // users can get their own account and admins can get any account
-                if (id != Account.Id && Account.Role != Role.Admin)
+                if (id != Account.Id.ToString() && Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 var account = _accountService.GetById(id);
@@ -183,8 +190,8 @@
         }
 
         [AllowAnonymous]
-        [HttpGet("profile/{id:int}")]
-        public ActionResult<AccountProfileResponse> GetProfileById(int id)
+        [HttpGet("profile/{id}")]
+        public ActionResult<AccountProfileResponse> GetProfileById(string id)
         {
             try
             {
@@ -198,8 +205,8 @@
         }
 
         [AllowAnonymous]
-        [HttpGet("profile/{id:int}/picture")]
-        public ActionResult<AccountProfilePictureResponse> GetProfilePictureById(int id)
+        [HttpGet("profile/{id}/picture")]
+        public ActionResult<AccountProfilePictureResponse> GetProfilePictureById(string id)
         {
             try
             {
@@ -212,7 +219,7 @@
                     return NotFound();
                 }
 
-                var profilepicture = _fileService.GetFileById((int)fileid);
+                var profilepicture = _fileService.GetFileById((string)fileid);
                 //Console.WriteLine(System.IO.File.Exists(profilepicture.FilePath));
                 if (profilepicture == null || !System.IO.File.Exists(profilepicture.FilePath))
                     return NotFound();
@@ -253,7 +260,7 @@
                 // users can update their own account and admins can update any account
 
                 //todo ensure the function works with the changed UpdateRequest
-                if (model.Id != Account.Id && Account.Role != Role.Admin)
+                if (model.Id != Account.Id.ToString() && Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 //if (model.Id == null)
@@ -265,7 +272,7 @@
 
                 if (model.ProfilePicture != null)
                 {
-                    Console.WriteLine("MODEL.PROFILEPICTURE IS -NOT- NULL");
+                    //Console.WriteLine("MODEL.PROFILEPICTURE IS -NOT- NULL");
                     var filenameGUID = Guid.NewGuid().ToString();
                     model.ProfilePicture.FileName = filenameGUID;
                     var subfolderpath = Path.Combine("ProfilePictures",
@@ -293,13 +300,13 @@
             }
         }
 
-        [HttpDelete("{id:int}")]
-        public IActionResult Delete(int id)
+        [HttpDelete("{id}")]
+        public IActionResult Delete(string id)
         {
             try
             {
                 // users can delete their own account and admins can delete any account
-                if (id != Account.Id && Account.Role != Role.Admin)
+                if (id != Account.Id.ToString() && Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 _accountService.Delete(id);

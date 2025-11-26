@@ -1,10 +1,13 @@
-﻿using System.Data;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Data;
+using MassTransit;
 
 namespace SongAppApi.Entities
 {
     public class Account
     {
-        public int Id { get; set; }
+        [Key]
+        public Guid Id { get; set; } = NewId.NextSequentialGuid();
         public string UserName { get; set; }
         public string Email { get; set; }
         public string PasswordHash { get; set; }

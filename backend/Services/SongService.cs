@@ -9,15 +9,15 @@ namespace SongAppApi.Services
 {
     public interface ISongService
     {
-        SongResponse Get(int id);
+        SongResponse Get(string id);
         IEnumerable<SongResponse> GetAll();
-        IEnumerable<int> GetAllIds();
+        IEnumerable<string> GetAllIds();
         SongResponse Create(CreateSongRequest request, Account account);
         //todo add update?
         //SongResponse Update(UpdateSongRequest request); 
         //??
-        void Delete(int id);
-        UpvotesResponse FlipLike(int id, Account account);
+        void Delete(string id);
+        UpvotesResponse FlipLike(string id, Account account);
         //void Unlike(int id, Account account);
     }
     public class SongService : ISongService
@@ -34,7 +34,7 @@ namespace SongAppApi.Services
             _mapper = mapper;
         }
 
-        public SongResponse Get(int id)
+        public SongResponse Get(string id)
         {
             var song = getSong(id);
             return _mapper.Map<SongResponse>(song);
@@ -46,9 +46,9 @@ namespace SongAppApi.Services
             return _mapper.Map<List<SongResponse>>(songs);
         }
 
-        public IEnumerable<int> GetAllIds()
+        public IEnumerable<string> GetAllIds()
         {
-            return _context.Songs.Select(s => s.Id);
+            return _context.Songs.Select(s => s.Id.ToString());
         }
 
         public SongResponse Create(CreateSongRequest request, Account creator)
@@ -64,14 +64,14 @@ namespace SongAppApi.Services
             return _mapper.Map<SongResponse>(song);
         }
 
-        public void Delete(int id)
+        public void Delete(string id)
         {
             var song = getSong(id);
             _context.Songs.Remove(song);
             _context.SaveChanges();
         }
 
-        public UpvotesResponse FlipLike(int id, Account account)
+        public UpvotesResponse FlipLike(string id, Account account)
         {
             var song = getSong(id);
             if (song.LikedByAccounts.Any(a => a.Id == account.Id))
@@ -104,7 +104,7 @@ namespace SongAppApi.Services
 
         //helperss
 
-        public Song getSong(int id)
+        public Song getSong(string id)
         {
             var song = _context.Songs
                 .Include(s => s.CreatedBy)
@@ -112,7 +112,7 @@ namespace SongAppApi.Services
                 .Include(s => s.Image)
                 .Include(s => s.Sound)
                 .Include(s => s.Video)
-                .FirstOrDefault(s => s.Id == id);
+                .FirstOrDefault(s => s.Id.ToString() == id);
 
             if (song == null)
                 throw new KeyNotFoundException("Song could not be found");

@@ -10,13 +10,14 @@ namespace SongAppApi.Services
 {
     public interface IPlaylistService
     {
-        PlaylistResponse Get(int id);
-        IEnumerable<PlaylistResponse> GetCreatedByAccount(int accountid);
-        IEnumerable<PlaylistResponse> GetSavedByAccount(int accountid);
+        PlaylistResponse Get(string id);
+        IEnumerable<PlaylistResponse> GetCreatedByAccount(string accountid);
+        IEnumerable<PlaylistResponse> GetSavedByAccount(string accountid);
         IEnumerable<PlaylistResponse> GetAll();
         PlaylistResponse Create(CreatePlaylistRequest request, Account account);
-        PlaylistResponse Update(int id, UpdatePlaylistRequest request);
-        void Delete(int id);
+        PlaylistResponse Update(string id, UpdatePlaylistRequest request);
+        //PlaylistResponse FlipIsPublic();
+        void Delete(string id);
     }
     public class PlaylistService : IPlaylistService
     {
@@ -32,19 +33,19 @@ namespace SongAppApi.Services
             _mapper = mapper;
         }
 
-        public PlaylistResponse Get(int id)
+        public PlaylistResponse Get(string id)
         {
             var playlist = getPlaylist(id);
             return _mapper.Map<PlaylistResponse>(playlist);
         }
 
-        public IEnumerable<PlaylistResponse> GetCreatedByAccount(int accountid)
+        public IEnumerable<PlaylistResponse> GetCreatedByAccount(string accountid)
         {
             var playlists = getAllByAccount(accountid);
             return _mapper.Map<List<PlaylistResponse>>(playlists);
         }
 
-        public IEnumerable<PlaylistResponse> GetSavedByAccount(int accountid)
+        public IEnumerable<PlaylistResponse> GetSavedByAccount(string accountid)
         {
             var playlists = getAllSavedByAccount(accountid);
             return _mapper.Map<List<PlaylistResponse>>(playlists);
@@ -69,7 +70,7 @@ namespace SongAppApi.Services
             return _mapper.Map<PlaylistResponse>(playlist);
         }
 
-        public PlaylistResponse Update(int id, UpdatePlaylistRequest request)
+        public PlaylistResponse Update(string id, UpdatePlaylistRequest request)
         {
             var playlist = getPlaylist(id);
 
@@ -81,7 +82,7 @@ namespace SongAppApi.Services
             return _mapper.Map<PlaylistResponse>(playlist);
         }
 
-        public void Delete(int id)
+        public void Delete(string id)
         {
             var playlist = getPlaylist(id);
             _context.Playlists.Remove(playlist);
@@ -90,13 +91,13 @@ namespace SongAppApi.Services
 
         //helper
 
-        public Playlist getPlaylist(int id)
+        public Playlist getPlaylist(string id)
         {
             var playlist = _context.Playlists
                 .Include(p => p.CreatedBy)
                 .Include(p => p.SavedByAccounts)
                 .Include(p => p.Songs)
-                .FirstOrDefault(p => p.Id == id);
+                .FirstOrDefault(p => p.Id.ToString() == id);
             if (playlist == null)
                 throw new KeyNotFoundException("Playlist could not be found");
             return playlist;
@@ -114,26 +115,26 @@ namespace SongAppApi.Services
             return playlists;
         }
 
-        public List<Playlist> getAllByAccount(int accountid)
+        public List<Playlist> getAllByAccount(string accountid)
         {
             var playlists = _context.Playlists
                 .Include(p => p.CreatedBy)
                 .Include(p => p.SavedByAccounts)
                 .Include(p => p.Songs)
-                .Where(p => p.CreatedBy.Id == accountid)
+                .Where(p => p.CreatedBy.Id.ToString() == accountid)
                 .ToList();
             if (playlists == null)
                 throw new KeyNotFoundException("Playlists created by account could not be found");
             return playlists;
         }
 
-        public List<Playlist> getAllSavedByAccount(int accountid)
+        public List<Playlist> getAllSavedByAccount(string accountid)
         {
             var playlists = _context.Playlists
                     .Include(p => p.CreatedBy)
                     .Include(p => p.SavedByAccounts)
                     .Include(p => p.Songs)
-                .Where(p => p.SavedByAccounts.Any(a => a.Id == accountid))
+                .Where(p => p.SavedByAccounts.Any(a => a.Id.ToString() == accountid))
                 .ToList();
             if (playlists == null)
                 throw new KeyNotFoundException("Playlists saved by account could not be found");

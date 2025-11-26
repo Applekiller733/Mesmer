@@ -30,13 +30,13 @@ namespace SongAppApi.Services
         void ValidateResetToken(ValidateResetTokenRequest model);
         void ResetPassword(Models.Accounts.ResetPasswordRequest model);
         IEnumerable<AccountResponse> GetAll();
-        AccountResponse GetById(int id);
-        AccountProfileResponse GetProfileById(int id);
-        int? GetProfilePictureId(int id);
+        AccountResponse GetById(string id);
+        AccountProfileResponse GetProfileById(string id);
+        string? GetProfilePictureId(string id);
         AccountResponse Create(CreateRequest model);
-        AccountResponse Update(int id, UpdateRequest model, File file);
-        AccountResponse Update(int id, UpdateRequest model);
-        void Delete(int id);
+        AccountResponse Update(string id, UpdateRequest model, File file);
+        AccountResponse Update(string id, UpdateRequest model);
+        void Delete(string id);
     }
     public class AccountService : IAccountService
     {
@@ -224,19 +224,19 @@ namespace SongAppApi.Services
             return _mapper.Map<IList<AccountResponse>>(accounts);
         }
 
-        public AccountResponse GetById(int id)
+        public AccountResponse GetById(string id)
         {
             var account = getAccount(id);
             return _mapper.Map<AccountResponse>(account);
         }
 
-        public AccountProfileResponse GetProfileById(int id)
+        public AccountProfileResponse GetProfileById(string id)
         {
             var account = getAccount(id);
             return _mapper.Map<AccountProfileResponse>(account);
         }
 
-        public int? GetProfilePictureId(int id)
+        public string? GetProfilePictureId(string id)
         {
             var account = getAccount(id);
             //if ( account.ProfilePicture == null )
@@ -244,7 +244,7 @@ namespace SongAppApi.Services
             //Console.WriteLine(account.ProfilePicture);
             //Console.WriteLine(account.ProfilePicture.Id);
             if (account.ProfilePicture == null) return null;
-            return account.ProfilePicture.Id;
+            return account.ProfilePicture.Id.ToString();
         }
 
         public AccountResponse Create(CreateRequest model)
@@ -268,7 +268,7 @@ namespace SongAppApi.Services
             return _mapper.Map<AccountResponse>(account);
         }
 
-        public AccountResponse Update(int id, UpdateRequest model)
+        public AccountResponse Update(string id, UpdateRequest model)
         {
             var account = getAccount(id);
 
@@ -290,7 +290,7 @@ namespace SongAppApi.Services
             return _mapper.Map<AccountResponse>(account);
         }
 
-        public AccountResponse Update(int id, UpdateRequest model, File file )
+        public AccountResponse Update(string id, UpdateRequest model, File file )
         {
             var account = getAccount(id);
 
@@ -320,7 +320,7 @@ namespace SongAppApi.Services
             return _mapper.Map<AccountResponse>(account);
         }
 
-        public void Delete(int id)
+        public void Delete(string id)
         {
             var account = getAccount(id);
             _context.Accounts.Remove(account);
@@ -329,11 +329,11 @@ namespace SongAppApi.Services
 
         // helper methods
 
-        private Account getAccount(int id)
+        private Account getAccount(string id)
         {
             var account = _context.Accounts
                 .Include(a => a.ProfilePicture)
-                .FirstOrDefault(a => a.Id == id);
+                .FirstOrDefault(a => a.Id.ToString() == id);
             if (account == null) throw new KeyNotFoundException("Account not found");
             return account;
         }

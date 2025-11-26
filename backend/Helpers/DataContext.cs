@@ -31,10 +31,33 @@
 
             //.OnDelete(DeleteBehavior.Restrict); // prevents cascade delete
 
+            //prevents db from auto generating ids, instead we programatically gen the guids
+            modelBuilder.Entity<Account>()
+                .Property(x => x.Id)
+                .ValueGeneratedNever();
+
+            modelBuilder.Entity<File>()
+                .Property(x => x.Id)
+                .ValueGeneratedNever();
+
+            modelBuilder.Entity<Song>()
+                .Property(x => x.Id)
+                .ValueGeneratedNever();
+
+            modelBuilder.Entity<Playlist>()
+                .Property(x => x.Id)
+                .ValueGeneratedNever();
+
+            //modelBuilder.Entity<RefreshToken>()
+            //    .Property(x => x.Id)
+            //    .ValueGeneratedNever();
+
+            //for db relations
             modelBuilder.Entity<Song>()
                 .HasOne(s => s.CreatedBy)
                 .WithMany(a => a.CreatedSongs)
                 .HasForeignKey(s => s.CreatedById);
+
             //.OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Song>()

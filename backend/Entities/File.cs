@@ -1,11 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using MassTransit;
 
 namespace SongAppApi.Entities
 {
     public class File
     {
         [Key]
-        public int Id { get; set; }
+        public Guid Id { get; set; } = NewId.NextSequentialGuid();
         public string FileName { get; set; }
 
         public string Extension { get; set; }

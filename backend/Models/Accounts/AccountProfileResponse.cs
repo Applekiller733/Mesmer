@@ -3,7 +3,7 @@
     using SongAppApi.Entities;
     public class AccountProfileResponse
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
         public string UserName { get; set; }
         public string Role { get; set; }
         public DateTime Created { get; set; }

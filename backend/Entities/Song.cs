@@ -1,11 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using MassTransit;
 
 namespace SongAppApi.Entities
 {
     public class Song
     {
-        [Key]
-        public int Id { get; set; }
+        [Key] 
+        public Guid Id { get; set; } = NewId.NextSequentialGuid();
         public string Name { get; set; }
         public string Artist { get; set; }
         public int Upvotes { get; set; }
@@ -16,7 +17,7 @@ namespace SongAppApi.Entities
         public File? Video { get; set; }
         public string? SoundUrl { get; set; }
         public File? Sound { get; set; }
-        public int CreatedById { get; set; }
+        public Guid CreatedById { get; set; }
         public Account CreatedBy { get; set; }
         public List<Playlist> SavedInPlaylists { get; set; } = new List<Playlist>();
         public List<Account> LikedByAccounts { get; set; } = new List<Account>();

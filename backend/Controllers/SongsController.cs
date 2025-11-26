@@ -37,7 +37,7 @@ namespace SongAppApi.Controllers
 
         [AllowAnonymous]
         [HttpGet("song-ids")]
-        public ActionResult<IEnumerable<int>> GetAllIds()
+        public ActionResult<IEnumerable<string>> GetAllIds()
         {
             try
             {
@@ -51,8 +51,8 @@ namespace SongAppApi.Controllers
         }
 
         [AllowAnonymous]
-        [HttpGet("{id:int}")]
-        public ActionResult<SongResponse> Get(int id)
+        [HttpGet("{id}")]
+        public ActionResult<SongResponse> Get(string id)
         {
             try
             {
@@ -91,7 +91,7 @@ namespace SongAppApi.Controllers
                 var song = _service.Get(request.Id);
 
                 //todo check if createdby is properly fetched ie not always null
-                if (song.CreatedBy.Id != Account.Id || Account.Role != Role.Admin)
+                if (song.CreatedBy.Id != Account.Id.ToString() || Account.Role != Role.Admin)
                     return Unauthorized(new { message = "Unauthorized" });
 
                 _service.Delete(request.Id);

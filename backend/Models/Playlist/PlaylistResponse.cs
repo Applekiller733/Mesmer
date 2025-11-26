@@ -7,10 +7,11 @@ namespace SongAppApi.Models.Playlist
 {
     public class PlaylistResponse
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
         public string Name { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public bool IsPublic { get; set; }
         public AccountResponse CreatedBy { get; set; }
         //public int CreatedById { get; set; }
         public List<SongResponse> Songs { get; set; }
