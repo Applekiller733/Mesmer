@@ -14,7 +14,7 @@ export const fetchPlaylists = createAsyncThunk('playlists/fetchPlaylists', async
     }
 })
 
-export const fetchPlaylistById = createAsyncThunk('playlists/fetchPlaylistById', async (id: number, thunkAPI) => {
+export const fetchPlaylistById = createAsyncThunk('playlists/fetchPlaylistById', async (id: string, thunkAPI) => {
     try {
         return await apifetchplaylistbyid(id);
     }
@@ -23,7 +23,7 @@ export const fetchPlaylistById = createAsyncThunk('playlists/fetchPlaylistById',
     }
 })
 
-export const fetchLoadedPlaylist = createAsyncThunk('playlists/fetchLoadedPlaylist', async (id: number, thunkAPI) => {
+export const fetchLoadedPlaylist = createAsyncThunk('playlists/fetchLoadedPlaylist', async (id: string, thunkAPI) => {
     try {
         return await apifetchplaylistbyid(id);
     }
@@ -33,7 +33,7 @@ export const fetchLoadedPlaylist = createAsyncThunk('playlists/fetchLoadedPlayli
 })
 
 export const fetchPlaylistsCreatedByAccountId = createAsyncThunk('playlists/fetchPlaylistsCreatedByAccountId',
-    async (accountid: number, thunkAPI) => {
+    async (accountid: string, thunkAPI) => {
         try {
             return await apifetchplaylistscreatedbyaccount(accountid);
         }
@@ -43,7 +43,7 @@ export const fetchPlaylistsCreatedByAccountId = createAsyncThunk('playlists/fetc
     })
 
 export const fetchPlaylistsSavedByAccountId = createAsyncThunk('playlists/fetchPlaylistsSavedByAccountId',
-    async (accountid: number, thunkAPI) => {
+    async (accountid: string, thunkAPI) => {
         try {
             return await apifetchplaylistssavedbyaccount(accountid);
         }

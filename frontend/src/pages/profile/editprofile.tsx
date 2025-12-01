@@ -12,7 +12,7 @@ import { updateCurrentUserHelper } from "../../utils/helpers/userhelpers";
 
 export default function EditProfile() {
     const params = useParams();
-    const paramid = (params.id as unknown) as number;
+    const paramid = params.id;
     const dispatch = useAppDispatch();
     const [status, setStatus] = useState('init');
 
@@ -63,7 +63,7 @@ export default function EditProfile() {
         validationSchema: validationschema,
         onSubmit: (values) => {
             handleSubmit({
-                id: paramid,
+                id: paramid ?? "",
                 username: values.username,
                 email: null,
                 password: null,

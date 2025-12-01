@@ -44,20 +44,18 @@ export default function Library() {
         // if (response) {
         //     setLoadedPlaylist(response.payload);
         // }
-        const numid = (id as unknown) as number;
-        const response = await dispatch(fetchLoadedPlaylist(numid));
+        const response = await dispatch(fetchLoadedPlaylist(id));
     }
 
     async function handlePlaylistClick(event: React.MouseEvent, id: string) {
         setStatus('loading');
         setLoadedPage(LibraryPages.viewplaylist);
         loadPlaylist(id);
-        // let numid = (id as unknown) as number;`
-        // await loadPlaylist(numid);`
+
         setStatus('finished');
     }
 
-    async function handleDeletePlaylist(id: number) {
+    async function handleDeletePlaylist(id: string) {
         setStatus('loading');
         const response = await dispatch(deletePlaylist({ id: id }))
         if (response.meta.requestStatus === 'fulfilled' && user.id) {
@@ -92,15 +90,13 @@ export default function Library() {
                         {loadedPage === LibraryPages.viewplaylist
                             && <ViewPlaylist
                                 handlePlay={handlePlay}
-                                handleDeletePlaylist={() => { handleDeletePlaylist(loadedPlaylist.id as unknown as number) }}
+                                handleDeletePlaylist={() => { handleDeletePlaylist(loadedPlaylist.id) }}
                                 id={loadedPlaylist.id}
                             ></ViewPlaylist>}
                         {loadedPage === LibraryPages.listenplaylist
                             && <ListenPlaylist 
-                            id={loadedPlaylist.id}  
-                                                      
+                            id={loadedPlaylist.id}         
                             >
-
                             </ListenPlaylist>
                         }
                     </div>

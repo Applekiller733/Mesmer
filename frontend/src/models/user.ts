@@ -1,7 +1,7 @@
 import type { FileModel } from "./file"
 
 export interface User{
-    id?: number,
+    id?: string,
     username: string,
     email:string,
     role:string,
@@ -43,7 +43,7 @@ export interface UserProfile {
 }
 
 export interface UpdateUserRequest{
-    id: number,
+    id: string,
     username: string | null,
     email: string | null,
     password: string | null,
@@ -53,7 +53,7 @@ export interface UpdateUserRequest{
 }
 
 export interface UserAdminView {
-    id: number | null,
+    id: string | null,
     username: string | null,
     email: string | null,
     role: string | null,

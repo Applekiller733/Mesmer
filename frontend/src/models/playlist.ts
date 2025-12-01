@@ -14,11 +14,11 @@ export interface CreatePlaylistRequest {
 }
 
 export interface UpdatePlaylistRequest {
-    id: number,
+    id: string,
     name:string,
     songIds: string[],
 }
 
 export interface DeletePlaylistRequest {
-    id: number,
+    id: string,
 }

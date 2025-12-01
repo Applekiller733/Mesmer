@@ -3,6 +3,7 @@ import ReactPlayer from 'react-player';
 
 import "./song.css";
 import { useEffect, useState, type ReactEventHandler } from "react";
+import React from "react";
 
 interface VideoWidgetProps {
     song: Song,

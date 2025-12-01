@@ -16,7 +16,6 @@ export default function ViewPlaylist({ id, handleDeletePlaylist, handlePlay }:
     const [isEditing, setIsEditing] = useState<boolean>(false);
     // const [isDeleted, setIsDeleted] = useState<boolean>(false);
     const playlist = useSelector(selectLoadedPlaylist);
-    const numid = (id as unknown) as number;
 
     // useEffect(() => {
     //     dispatch(fetchLoadedPlaylist(numid));
@@ -41,16 +40,15 @@ export default function ViewPlaylist({ id, handleDeletePlaylist, handlePlay }:
         if (playlist.songs.find(s => s.id === songid) != undefined) {
             const filteredsongs = playlist.songs.filter(s => s.id !== songid);
             const songIds = filteredsongs.map(s => s.id);
-            const numplaylistid = (id as unknown) as number;
-
+            
             const response = await dispatch(updatePlaylist({
-                id: numplaylistid,
+                id: id,
                 name: playlist.name,
                 songIds: songIds
             }))
             if (response.meta.requestStatus === 'fulfilled') {
                 // console.log("Update Successful");
-                dispatch(fetchLoadedPlaylist(numid));
+                dispatch(fetchLoadedPlaylist(id));
             }
         }
     }
@@ -91,7 +89,7 @@ export default function ViewPlaylist({ id, handleDeletePlaylist, handlePlay }:
                 rows={playlist.songs}
                 isEditing={isEditing}
             ></SelectedSongsGrid>
-            {isEditing && <Button onClick={() => { handleDeletePlaylist(numid) }}>Delete Playlist</Button>}
+            {isEditing && <Button onClick={() => { handleDeletePlaylist(id) }}>Delete Playlist</Button>}
         </Box>
     );
 }

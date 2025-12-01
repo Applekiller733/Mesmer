@@ -43,11 +43,11 @@ export function apifetchUsers() {
     .then(response => response.json());
 }
 
-export function apifetchUser(id: number) {
+export function apifetchUser(id: string) {
     return "NOT IMPLEMENTED";
 }
 
-export function apifetchUserProfile(id: number) {
+export function apifetchUserProfile(id: string) {
     const url = `${API_URL}/profile/${id}`;
     return fetch(url, {
         method: "GET",
@@ -56,7 +56,7 @@ export function apifetchUserProfile(id: number) {
         .then(response => response.json())
 }
 
-export function apigetprofilepicture(id: number){
+export function apigetprofilepicture(id: string){
     const url = `${API_URL}/profile/${id}/picture`;
     return fetch(url, {
         method: "GET"
@@ -159,7 +159,7 @@ export function apiresetpassword(request: ResetPasswordRequest) {
 export async function apiupdateuser(request: UpdateUserRequest) {
     const url = `${API_URL}`;
     const formData = new FormData();
-    var stringid = (request.id as unknown) as string;
+    var stringid = request.id.toString();
 
     formData.append("Id", stringid);
     if (request.username) formData.append("UserName", request.username);
@@ -203,7 +203,7 @@ export async function apiupdateuser(request: UpdateUserRequest) {
         // });
 }
 
-export function apideleteuser(id: number) {
+export function apideleteuser(id: string) {
     const url = `${API_URL}/${id}`;
     return fetch(url, {
         method: "DELETE",

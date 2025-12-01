@@ -3,6 +3,7 @@ import { darkTheme } from "../../../themes/themes";
 import { Box, Button, List, ListItem, Paper, Typography } from "@mui/material";
 import PlaylistListItem from "./playlistlistitem";
 import type { Playlist } from "../../../models/playlist";
+import React from "react";
 
 export default function SideList({ handlePlaylistClick, handleCreatePlaylist, playlists }: {
     handlePlaylistClick: (event: React.MouseEvent, id: string) => void;

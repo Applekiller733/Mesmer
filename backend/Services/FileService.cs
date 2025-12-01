@@ -89,7 +89,7 @@ namespace SongAppApi.Services
 
         public File GetFileById(string id)
         {
-            var file = _context.Files.Find(id);
+            var file = _context.Files.Find(Guid.Parse(id));
             if (file == null)
             {
                 throw new KeyNotFoundException("Could not find file");

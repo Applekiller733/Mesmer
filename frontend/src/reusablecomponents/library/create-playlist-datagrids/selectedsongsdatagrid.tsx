@@ -4,6 +4,7 @@ import Switch from '@mui/material/Switch';
 import Box from '@mui/material/Box';
 import { useState } from 'react';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
+import React from 'react';
 
 export default function SelectedSongsGrid({ handleRowSelect, handleDeleteRow, rows, isEditing }:
     { handleRowSelect: any, handleDeleteRow: any, rows: any, isEditing: boolean }) {

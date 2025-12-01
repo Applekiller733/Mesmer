@@ -16,7 +16,7 @@ export default function Profile(){
     const dispatch = useAppDispatch();
     const currentuser = useSelector(selectCurrentUser);
     const profile = useSelector(selectLoadedProfile);
-    const paramid = (params.id as unknown) as number;
+    const paramid = params.id ?? "";
     const isOwner = paramid == currentuser.id || currentuser.role.match('Admin');
  
     useEffect(() => {

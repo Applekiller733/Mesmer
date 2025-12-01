@@ -4,10 +4,11 @@ import type { UserProfile } from "../../models/user";
 import { useAppDispatch } from "../../hooks/hooks";
 import { useEffect, useState } from "react";
 import { getProfilePicture } from "../../stores/thunks/userthunks";
+import React from "react";
 
 
 export interface SmallProfileProps extends UserProfile {
-    id: number,
+    id: string,
 }
 
 export default function SmallProfile({ username, role, createdAt, updatedAt, id }: SmallProfileProps) {

@@ -3,7 +3,7 @@ export interface Song {
     name: string,
     artist: string,
     upvotes: number,
-    likedByAccountIds?: number[],
+    likedByAccountIds?: string[],
     imageUrl?: string,
     videoUrl?: string,
     soundUrl?: string,
@@ -20,9 +20,9 @@ export interface CreateSongRequest {
 }
 
 export interface DeleteSongRequest {
-    id: number,
+    id: string,
 }
 
 export interface FlipLikeRequest {
-    id:number,
+    id:string,
 }

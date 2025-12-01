@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactEventHandler } from "react";
 import { useAppDispatch } from "../../hooks/hooks";
 import AddToPlaylistDialog from "./addtoplaylistdialog";
 import { flipLike } from "../../stores/thunks/songthunks";
+import React from "react";
 
 interface SongProps {
     song: Song,
@@ -21,8 +22,7 @@ interface SongProps {
 const SongComponent = (props: SongProps) => {
     const [liked, setLiked] = useState
         (props.song.likedByAccountIds?.find(id => 
-            id = (props.song.id as unknown) as number) 
-            !== undefined); // works, but maybe shorten it a bit
+            id = props.song.id) !== undefined); // works, but maybe shorten it a bit
     const dispatch = useAppDispatch();
     const [isSaving, setIsSaving] = useState(false);
     const song = props.song;
@@ -31,8 +31,7 @@ const SongComponent = (props: SongProps) => {
     const autoplay = props.autoplay;
 
     function handleLike() {
-        const numid = (song.id as unknown) as number;
-        dispatch(flipLike({id:numid}))
+        dispatch(flipLike({id:song.id}))
         setLiked(!liked);
     }
 

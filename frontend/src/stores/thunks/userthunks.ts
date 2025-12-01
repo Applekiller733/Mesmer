@@ -43,7 +43,7 @@ export const fetchCurrentUser = createAsyncThunk('users/fetchCurrentUser', async
     }
 })
 
-export const fetchUserProfile = createAsyncThunk('users/fetchUserProfile', async (id: number) => {
+export const fetchUserProfile = createAsyncThunk('users/fetchUserProfile', async (id: string) => {
     try {
         const response = await apifetchUserProfile(id);
 
@@ -57,7 +57,7 @@ export const fetchUserProfile = createAsyncThunk('users/fetchUserProfile', async
     }
 })
 
-export const getProfilePicture = createAsyncThunk('users/profile-picture', async (id: number) => {
+export const getProfilePicture = createAsyncThunk('users/profile-picture', async (id: string) => {
     try {
         const response = await apigetprofilepicture(id);
         if (!response) {
@@ -157,7 +157,7 @@ export const update = createAsyncThunk('users/update', async (request: UpdateUse
     }
 })
 
-export const deleteuser = createAsyncThunk('users/delete', async (id: number) => {
+export const deleteuser = createAsyncThunk('users/delete', async (id: string) => {
     try {
         const response = await apideleteuser(id);
 

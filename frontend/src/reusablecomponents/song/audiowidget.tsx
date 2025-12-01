@@ -7,6 +7,7 @@ import "./song.css";
 import PlayCircleFilled from "@mui/icons-material/PlayCircleFilled";
 import PauseCircleFilled from "@mui/icons-material/PauseCircleFilled";
 import KeyboardDoubleArrowLeftIcon from '@mui/icons-material/KeyboardDoubleArrowLeft';
+import React from "react";
 
 interface AudioWidgetProps {
     song: Song,
@@ -54,9 +55,6 @@ const AudioWidget = (props: AudioWidgetProps) => {
             setIsPlaying(false);
         }
     }
-
-
-
 
     return (
         <div className="audiowidget">

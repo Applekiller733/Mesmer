@@ -31,7 +31,7 @@ export async function apifetchplaylists(){
     // })
 }
 
-export async function apifetchplaylistbyid(id:number){
+export async function apifetchplaylistbyid(id:string){
     const url = `${API_URL}/${id}`;
     const response = await fetch(url, {
         method: "GET",
@@ -57,7 +57,7 @@ export async function apifetchplaylistbyid(id:number){
     // })
 }
 
-export async function apifetchplaylistscreatedbyaccount(accountid:number){
+export async function apifetchplaylistscreatedbyaccount(accountid:string){
     const url = `${API_URL}/made-by/${accountid}`
     const response = await fetch(url, {
         method: "GET",
@@ -85,7 +85,7 @@ export async function apifetchplaylistscreatedbyaccount(accountid:number){
     // })
 }
 
-export async function apifetchplaylistssavedbyaccount(accountid:number){
+export async function apifetchplaylistssavedbyaccount(accountid:string){
     const url = `${API_URL}/saved-by/${accountid}`
     const response = await fetch(url, {
         method: "GET",

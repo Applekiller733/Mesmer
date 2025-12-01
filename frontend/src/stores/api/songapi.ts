@@ -109,7 +109,7 @@ export async function apifetchsongids() {
 }
 
 //todo test if it properly returns song
-export async function apifetchsongbyid(id: number) {
+export async function apifetchsongbyid(id: string) {
     const url = `${API_URL}/${id}`;
     const response = await fetch(url, {
         method: "GET",

@@ -3,6 +3,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import Box from '@mui/material/Box';
 import { useState } from 'react';
+import React from 'react';
 
 export default function AddSongsGrid(handleRowSelect: any) {
     const [rows, setRows] = useState([]);

@@ -5,7 +5,7 @@ import { fetchSongById, fetchSongIds, fetchSongs, flipLike } from '../thunks/son
 
 const getInitialState = (): {
     songs: Song[],
-    allSongIds: number[],
+    allSongIds: string[],
     loadedSongs: Record<number, Song>,
     currentSongIndex: number,
     status: string, errormsg: string

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAppDispatch } from "../../hooks/hooks";
 import type { FileModel } from "../../models/file";
 import { uploadFile } from "../../stores/thunks/filethunks";
+import React from "react";
 
 export default function FileUploader() {
     const [file, setFile] = useState<File | null>(null);

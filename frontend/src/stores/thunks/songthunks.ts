@@ -21,7 +21,7 @@ export const fetchSongIds = createAsyncThunk('songs/fetchSongIds', async (_, thu
     }
 });
 
-export const fetchSongById = createAsyncThunk('songs/fetchSongById', async (id:number, thunkAPI) => {
+export const fetchSongById = createAsyncThunk('songs/fetchSongById', async (id:string, thunkAPI) => {
     try {
         return await apifetchsongbyid(id);
     }

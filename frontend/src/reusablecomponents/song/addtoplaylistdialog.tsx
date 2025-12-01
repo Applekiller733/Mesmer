@@ -8,6 +8,7 @@ import { selectCurrentUser } from "../../stores/slices/userdataslice";
 import type { Playlist } from "../../models/playlist";
 import type { Song } from "../../models/song";
 import CheckIcon from '@mui/icons-material/Check';
+import React from "react";
 
 export default function AddToPlaylistDialog({ open, song, handleDialogClose }
     : { open: boolean, song: Song, handleDialogClose: any }) {
@@ -29,9 +30,8 @@ export default function AddToPlaylistDialog({ open, song, handleDialogClose }
             songs: [...playlist.songs, song],
           };
         const songIds = updatedPlaylist.songs.map(p => p.id);
-        const playlistnumid = playlist.id as unknown as number;
         const response = await dispatch(updatePlaylist({
-            id: playlistnumid,
+            id: playlist.id,
             name: playlist.name,
             songIds: songIds,
         }));

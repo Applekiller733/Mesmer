@@ -50,7 +50,7 @@ export default function ForYou() {
             }
         }
 
-        for (const loadedId of Object.keys(loadedSongs).map(Number)) {
+        for (const loadedId of Object.keys(loadedSongs)) {
             if (!idsToKeep.includes(loadedId)) {
                 dispatch(unloadSong(loadedId));
             }
