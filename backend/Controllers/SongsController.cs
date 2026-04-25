@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using SongAppApi.Authorization;
 using SongAppApi.Entities;
 using SongAppApi.Models.Songs;
@@ -11,8 +12,8 @@ namespace SongAppApi.Controllers
     [Route("[controller]")]
     public class SongsController : BaseController
     {
-        ISongService _service;
-        IAccountService _accountService;
+        private readonly ISongService _service;
+        private readonly IAccountService _accountService;
 
         public SongsController(ISongService service, IAccountService accountService)
         {
@@ -27,6 +28,12 @@ namespace SongAppApi.Controllers
             try
             {
                 var response = _service.GetAll();
+                // Post-process so SoundUrl points to the streaming endpoint when
+                // the song has an uploaded file. (See Get/Create for the pattern.)
+                foreach (var s in response)
+                {
+                    PopulateSoundUrlIfUploaded(s);
+                }
                 return Ok(response);
             }
             catch (Exception ex)
@@ -41,8 +48,7 @@ namespace SongAppApi.Controllers
         {
             try
             {
-                var response = _service.GetAllIds();
-                return Ok(response);
+                return Ok(_service.GetAllIds());
             }
             catch (Exception ex)
             {
@@ -57,6 +63,7 @@ namespace SongAppApi.Controllers
             try
             {
                 var response = _service.Get(id);
+                PopulateSoundUrlIfUploaded(response);
                 return Ok(response);
             }
             catch (Exception ex)
@@ -64,57 +71,84 @@ namespace SongAppApi.Controllers
                 return NotFound(new { message = ex.Message });
             }
         }
-        
 
+        // NEW: streams the audio file with HTTP range support so <audio> can seek.
+        // Anonymous so the player can fetch without managing auth headers in the
+        // <audio> tag. Tighten this if you need access control.
+        [AllowAnonymous]
+        [HttpGet("{id}/audio")]
+        public IActionResult GetAudio(string id)
+        {
+            try
+            {
+                var file = _service.GetSoundFile(id);
+                if (file == null || !System.IO.File.Exists(file.FilePath))
+                    return NotFound();
+
+                var stream = new FileStream(
+                    file.FilePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read);
+
+                var provider = new FileExtensionContentTypeProvider();
+                if (!provider.TryGetContentType(file.FileName, out var contentType))
+                    contentType = "application/octet-stream";
+
+                // enableRangeProcessing: true is the critical bit — it lets the
+                // browser do byte-range requests for seeking.
+                return File(stream, contentType, enableRangeProcessing: true);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            }
+        }
+
+        // CHANGED: now accepts multipart form data. The CreateSongRequest model
+        // contains the optional IFormFile SoundFile alongside the metadata.
         [HttpPost("create-song")]
-        public ActionResult<SongResponse> Create(CreateSongRequest request)
+        public ActionResult<SongResponse> Create([FromForm] CreateSongRequest request)
         {
             try
             {
-                //todo test if it works and add new role for user uploader?
-                if (Account.Role != Role.Admin)
-                    return Unauthorized(new { message = "Unauthorized" });
+                if (Account == null) return Unauthorized();
+
                 var response = _service.Create(request, Account);
+                PopulateSoundUrlIfUploaded(response);
                 return Ok(response);
             }
+            catch (InvalidOperationException ex)
+            {
+                // Validation failures from FileService (size, extension)
+                return BadRequest(new { message = ex.Message });
+            }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
             }
         }
 
-        [HttpDelete]
-        public ActionResult Delete(DeleteSongRequest request)
+        // Helper: when a song has an uploaded audio file, set SoundUrl to the
+        // streaming endpoint so the frontend can plug it straight into <audio src=…>.
+        // For songs that only have an external URL, leave it as-is.
+        private void PopulateSoundUrlIfUploaded(SongResponse s)
         {
-            try
-            {
-                var song = _service.Get(request.Id);
+            if (s == null || string.IsNullOrEmpty(s.Id)) return;
 
-                //todo check if createdby is properly fetched ie not always null
-                if (song.CreatedBy.Id != Account.Id.ToString() || Account.Role != Role.Admin)
-                    return Unauthorized(new { message = "Unauthorized" });
+            var file = _service.GetSoundFile(s.Id);
+            if (file == null) return;
 
-                _service.Delete(request.Id);
-                return Ok(new { message = "Song deleted successfully" });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var absolute = Url.Action(
+                action: nameof(GetAudio),
+                controller: "Songs",
+                values: new { id = s.Id },
+                protocol: Request.Scheme,
+                host: Request.Host.Value);
+
+            if (!string.IsNullOrEmpty(absolute))
+                s.SoundUrl = absolute;
         }
 
-        [HttpPost("flip-like")]
-        public ActionResult FlipLike(FlipLikeRequest request)
-        {
-            try
-            {
-                var response = _service.FlipLike(request.Id, Account);
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
     }
 }

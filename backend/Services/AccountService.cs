@@ -18,6 +18,7 @@ namespace SongAppApi.Services
     using System.Security.Cryptography;
     using System.Text;
     using MimeKit;
+    using SongAppApi.Helpers.Enumerators;
 
     public interface IAccountService
     {

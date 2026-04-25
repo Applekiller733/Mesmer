@@ -43,16 +43,15 @@
     color: #ffffff;
 }
 
-/* AudioWidget styles */
 .audiowidget {
     position: relative;
     width: 100%;
     aspect-ratio: 1 / 1;
     border-radius: 8px;
-    overflow:visible;
+    overflow: visible;
     background-color: #2a2a2a;
 }
-
+ 
 .audiowidget-overlapping-items {
     position: relative;
     width: 100%;
@@ -60,7 +59,7 @@
     margin: 0;
     padding: 0;
 }
-
+ 
 .songimage {
     width: 100%;
     height: 100%;
@@ -69,42 +68,81 @@
     margin: 0;
     padding: 0;
 }
-
-.audiowidget-overlapping-button {
+ 
+/* The controls bar overlays the bottom of the cover. This is the ONLY
+ * absolutely-positioned element inside the cover — buttons sit inside
+ * via flexbox. */
+.audiowidget-controls {
     position: absolute;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.8);
-    border-radius: 50%;
-    transition: background-color 0.2s ease, transform 0.2s ease;
-    z-index: 1; 
-    border: 2px solid rgba(255, 255, 255, 0.3); 
+    left: 0;
+    right: 0;
+    bottom: 0.75rem;
+ 
+    /* Tiny inset from the cover edges so buttons don't touch the corners. */
+    padding: 0 0.75rem;
+ 
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+ 
+    /* Above the cover, below dialogs/poppers. */
+    z-index: 1;
+ 
+    /* No background — buttons sit directly on the cover art. */
+    pointer-events: none; /* let the cover receive events outside the buttons */
 }
-
-.audiowidget-overlapping-button:hover {
-    background-color: rgba(0, 0, 0, 1);
+ 
+/* Re-enable pointer events on the actual interactive children. */
+.audiowidget-controls > * {
+    pointer-events: auto;
+}
+ 
+/* Left and right sub-groups. Flexbox here lets us add more buttons to
+ * either side later (shuffle, repeat, fullscreen) without touching the
+ * outer bar. */
+.audiowidget-controls-left,
+.audiowidget-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+ 
+/* Generic styling shared by play/revert. Volume button uses its own
+ * (transparent, flat) styling from volumecontrol.css. */
+.audiowidget-control-button {
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+ 
+.audiowidget-control-button:hover {
     transform: scale(1.1);
 }
-
-.audiowidget-overlapping-button-play {
-    bottom: 4rem;
+ 
+/* The "circle" variant: dark filled disc with a thin white border, used
+ * by play and revert. Volume opts out by not including this class. */
+.audiowidget-control-button-circle {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 50%;
+    padding: 6px !important;
 }
-
-.audiowidget-overlapping-button-revert {
-    bottom: 4rem;
-    left: 12rem;
+ 
+.audiowidget-control-button-circle:hover {
+    background-color: rgba(0, 0, 0, 1) !important;
 }
-
-/* VideoWidget styles */
+ 
+/* VideoWidget styles (unchanged) */
 .videowidget {
     width: 100%;
     aspect-ratio: 16 / 9;
     border-radius: 8px;
 }
-
+ 
 .videowidget .react-player {
     width: 100% !important;
     height: 100% !important;
 }
+
 
 /* Button styles for consistency */
 button {
@@ -134,7 +172,17 @@ button:hover {
         font-size: 1rem;
     }
 
-    .audiowidget-overlapping-button svg {
-        font-size: 36px;
+    .audiowidget-control-button svg {
+        font-size: 36px !important;
     }
+    .audiowidget-controls {
+        bottom: 0.5rem;
+        padding: 0 0.5rem;
+        gap: 0.5rem;
+    }
+    .audiowidget-controls-left,
+    .audiowidget-controls-right {
+        gap: 0.25rem;
+    }
+
 }

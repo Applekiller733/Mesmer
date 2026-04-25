@@ -208,6 +208,9 @@ namespace SongAppApi.Migrations
                     b.Property<string>("ImageUrl")
                         .HasColumnType("text");
 
+                    b.Property<string>("MBId")
+                        .HasColumnType("text");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -216,9 +219,6 @@ namespace SongAppApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("SoundUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SpotifyId")
                         .HasColumnType("text");
 
                     b.Property<float?>("Tempo")

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SongAppApi.Authorization;
 using SongAppApi.Entities;
 using SongAppApi.Helpers;
+using SongAppApi.Helpers.Enumerators;
 using SongAppApi.Models.Songs;
 
 namespace SongAppApi.Services
@@ -13,25 +14,27 @@ namespace SongAppApi.Services
         IEnumerable<SongResponse> GetAll();
         IEnumerable<string> GetAllIds();
         SongResponse Create(CreateSongRequest request, Account account);
-        //todo add update?
-        //SongResponse Update(UpdateSongRequest request); 
-        //??
         void Delete(string id);
         UpvotesResponse FlipLike(string id, Account account);
-        //void Unlike(int id, Account account);
+
+        // New: needed by the audio streaming endpoint to find the on-disk file.
+        Entities.File? GetSoundFile(string songId);
     }
+
     public class SongService : ISongService
     {
         private readonly DataContext _context;
         private readonly IJwtUtils _jwtUtils;
         private readonly IMapper _mapper;
+        private readonly IFileService _fileService;
 
         public SongService(DataContext context,
-            IJwtUtils jwtUtils, IMapper mapper)
+            IJwtUtils jwtUtils, IMapper mapper, IFileService fileService)
         {
             _context = context;
             _jwtUtils = jwtUtils;
             _mapper = mapper;
+            _fileService = fileService;
         }
 
         public SongResponse Get(string id)
@@ -53,10 +56,29 @@ namespace SongAppApi.Services
 
         public SongResponse Create(CreateSongRequest request, Account creator)
         {
+            // Map metadata fields only. SoundFile is intentionally not in AutoMapper.
             var song = _mapper.Map<Song>(request);
             song.CreatedBy = creator;
             song.CreatedAt = DateTime.UtcNow;
             song.Upvotes = 0;
+
+            // If an audio file was uploaded, persist it and link it.
+            // The SoundUrl field on the response will be populated post-save
+            // by the controller (which knows the route), or you can build it
+            // here from a known route prefix — we leave it null and let the
+            // mapper / controller fill it in.
+            if (request.SoundFile != null && request.SoundFile.Length > 0)
+            {
+                var file = _fileService.CreateFromFormFile(
+                    request.SoundFile,
+                    subfolderpath: Path.Combine("Songs", "Audio"),
+                    category: FileCategory.Audio);
+
+                song.SoundId = file.Id;
+                // Clear any external URL the client also sent — the uploaded
+                // file is the source of truth and we don't want both set.
+                song.SoundUrl = null;
+            }
 
             _context.Songs.Add(song);
             _context.SaveChanges();
@@ -76,46 +98,33 @@ namespace SongAppApi.Services
             var song = getSong(id);
             if (song.LikedByAccounts.Any(a => a.Id == account.Id))
             {
-                //Console.WriteLine("Inside the remove statement");
                 song.LikedByAccounts.Remove(account);
             }
             else
             {
-                //Console.WriteLine("Inside the Add Statement");
                 song.LikedByAccounts.Add(account);
             }
-            Console.WriteLine(song.LikedByAccounts.ToArray().ToString());
             song.Upvotes = song.LikedByAccounts.Count;
-            _context.Songs.Update(song);
             _context.SaveChanges();
             return _mapper.Map<UpvotesResponse>(song);
         }
 
-        //public void Unlike(int id, Account account)
-        //{
-        //    var song = getSong(id);
-        //    if (song.LikedByAccounts.FirstOrDefault(a => a.Id == account.Id) == null)
-        //        return;
-        //song.LikedByAccounts.Remove(account);
-        //    song.Upvotes = song.LikedByAccounts.Count;
-        //    _context.Songs.Update(song);
-        //    _context.SaveChanges();
-        //}
-
-        //helperss
-
-        public Song getSong(string id)
+        public Entities.File? GetSoundFile(string songId)
         {
             var song = _context.Songs
-                .Include(s => s.CreatedBy)
-                .Include(s => s.LikedByAccounts)
-                .Include(s => s.Image)
                 .Include(s => s.Sound)
-                .Include(s => s.Video)
-                .FirstOrDefault(s => s.Id.ToString() == id);
+                .FirstOrDefault(s => s.Id == Guid.Parse(songId));
 
-            if (song == null)
-                throw new KeyNotFoundException("Song could not be found");
+            return song?.Sound;
+        }
+
+        private Song getSong(string id)
+        {
+            var song = _context.Songs
+                .Include(s => s.LikedByAccounts)
+                .Include(s => s.CreatedBy)
+                .FirstOrDefault(s => s.Id == Guid.Parse(id));
+            if (song == null) throw new KeyNotFoundException("Song not found");
             return song;
         }
     }

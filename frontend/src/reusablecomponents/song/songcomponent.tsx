@@ -51,7 +51,7 @@ const SongComponent = (props: SongProps) => {
             </div>
             <div>
                 {
-                    song.videoUrl !== undefined && song.videoUrl !== '' ?
+                    song.videoUrl !== undefined && song.videoUrl !== '' && song.videoUrl !== null?
                         (<VideoWidget song={song} handleEnded={onEnded} autoplay={autoplay}></VideoWidget>)
                         :
                         (<AudioWidget song={song} handleEnded={onEnded} autoplay={autoplay}></AudioWidget>)

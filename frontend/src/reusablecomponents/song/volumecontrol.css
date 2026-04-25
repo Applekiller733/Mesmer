@@ -1,0 +1,51 @@
+/* frontend/src/reusablecomponents/song/volumecontrol.css
+ *
+ * VolumeControl is now layout-agnostic — its parent decides where it sits.
+ * This file only handles visual concerns: transparent button, hover
+ * affordance, and the popper panel styling.
+ */
+
+/* The wrapper is just an inline-flex container so the popper anchors
+ * to the icon and the icon doesn't grow weirdly inside a flex parent. */
+ .volumecontrol {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Flat speaker icon — no background, no border, no rounded clipping.
+ * Subtle scale-up on hover for affordance, matching how the bordered
+ * play/revert buttons get a slight emphasis on hover. */
+.volumecontrol-iconbutton {
+    background: transparent !important;
+    transition: transform 0.2s ease;
+    padding: 4px !important;
+}
+
+.volumecontrol-iconbutton:hover {
+    background: transparent !important;
+    transform: scale(1.1);
+}
+
+/* Popper z-index needs to clear the controls bar and cover art but stay
+ * below MUI's modal stack (1300). 1500 is safely above the controls bar. */
+.volumecontrol-popper {
+    z-index: 1500;
+}
+
+.volumecontrol-popper-paper {
+    padding: 16px 12px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.volumecontrol-slider {
+    height: 100% !important;
+}
+
+@media (max-width: 600px) {
+    .volumecontrol-iconbutton svg {
+        font-size: 36px !important;
+    }
+}

@@ -3,12 +3,14 @@ import userdataReducer from './slices/userdataslice';
 import songdataReducer from './slices/songdataslice';
 import playlistdataReducer from "./slices/playlistdataslice";
 // import currentuserReducer from './slices/currentuserslice';
+import playbackReducer from "./slices/playbackslice";
 
 const store = configureStore({
     reducer: {
         userdata: userdataReducer,
         songdata: songdataReducer,
         playlistdata: playlistdataReducer,
+        playback: playbackReducer,
     },
 }
 );

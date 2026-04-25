@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Data;
 using MassTransit;
+using SongAppApi.Helpers.Enumerators;
 
 namespace SongAppApi.Entities
 {

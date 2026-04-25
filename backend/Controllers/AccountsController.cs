@@ -5,6 +5,7 @@
     using Microsoft.AspNetCore.StaticFiles;
     using SongAppApi.Authorization;
     using SongAppApi.Entities;
+    using SongAppApi.Helpers.Enumerators;
     using SongAppApi.Models.Accounts;
     using SongAppApi.Services;
 

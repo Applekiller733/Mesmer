@@ -2,7 +2,7 @@
 
 namespace SongAppApi.Models.Accounts
 {
-    using SongAppApi.Entities;
+    using SongAppApi.Helpers.Enumerators;
     using System.ComponentModel.DataAnnotations;
     public class UpdateRequest
     {

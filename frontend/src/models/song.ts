@@ -10,13 +10,13 @@ export interface Song {
 }
 
 
-//todo modify when adding the file functionality
 export interface CreateSongRequest {
-    name: string,
-    artist: string,
-    imageUrl?: string,
-    videoUrl?: string,
-    soundUrl?: string,
+    name: string;
+    artist: string;
+    imageUrl?: string;
+    videoUrl?: string;
+    soundUrl?: string;
+    soundFile?: File | null;   
 }
 
 export interface DeleteSongRequest {

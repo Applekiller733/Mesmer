@@ -5,6 +5,7 @@ using SongAppApi.Helpers;
 using SongAppApi.Services;
 using System.Text.Json.Serialization;
 using DotNetEnv;
+using Microsoft.AspNetCore.Http.Features;
 
 Env.Load();
 
@@ -27,6 +28,33 @@ var builder = WebApplication.CreateBuilder(args);
 
     // configure strongly typed settings object
     services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
+    builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
+
+    // file upload config
+    var uploadConfig = builder.Configuration.GetSection("FileUpload").Get<FileUploadSettings>()
+    ?? throw new InvalidOperationException("FileUpload section missing from configuration.");
+
+    var maxCategoryBytes = new[]
+    {
+        uploadConfig.Image.MaxSizeBytes,
+        uploadConfig.Audio.MaxSizeBytes,
+        uploadConfig.Video.MaxSizeBytes
+    }.Max();
+
+    var transportLimit = maxCategoryBytes + (5L * 1024 * 1024); // +5 MB headroom
+
+    builder.Services.Configure<FormOptions>(options =>
+    {
+        options.MultipartBodyLengthLimit = transportLimit;
+        options.ValueLengthLimit = int.MaxValue;
+        options.MultipartHeadersLengthLimit = int.MaxValue;
+    });
+
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.Limits.MaxRequestBodySize = transportLimit;
+    });
+
 
     // configure DI for application services
     services.AddScoped<IJwtUtils, JwtUtils>();

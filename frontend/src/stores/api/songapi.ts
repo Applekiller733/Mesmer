@@ -139,20 +139,30 @@ export async function apifetchsongbyid(id: string) {
 
 export async function apicreatesong(request: CreateSongRequest) {
     const url = `${API_URL}/create-song`;
-    console.log(request);
+ 
+    const formData = new FormData();
+    formData.append("name", request.name);
+    formData.append("artist", request.artist);
+    if (request.imageUrl) formData.append("imageUrl", request.imageUrl);
+    if (request.videoUrl) formData.append("videoUrl", request.videoUrl);
+    if (request.soundUrl) formData.append("soundUrl", request.soundUrl);
+    if (request.soundFile) formData.append("soundFile", request.soundFile);
+ 
+    // IMPORTANT: do NOT set Content-Type manually for multipart.
+    // The browser must set it (with the boundary parameter) automatically.
     const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader(url) },
-        body: JSON.stringify(request),
-    })
+        headers: { ...authHeader(url) }, // auth only, no Content-Type
+        body: formData,
+    });
+ 
     const data = await response.json();
-
     if (!response.ok) {
         throw new Error(data.message || "Creating Song failed");
     }
-
     return data;
 }
+
 
 export async function apideletesong(request: DeleteSongRequest) {
     const url = `${API_URL}`;

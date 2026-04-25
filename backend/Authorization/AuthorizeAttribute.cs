@@ -5,6 +5,8 @@ namespace SongAppApi.Authorization
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.AspNetCore.Mvc.Filters;
     using SongAppApi.Entities;
+    using SongAppApi.Helpers.Enumerators;
+
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
     public class AuthorizeAttribute : Attribute, IAuthorizationFilter
     {
