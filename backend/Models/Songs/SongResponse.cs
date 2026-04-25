@@ -15,5 +15,10 @@ namespace SongAppApi.Models.Songs
         public string? ImageUrl { get; set; }
         public string? VideoUrl { get; set; }
         public string? SoundUrl { get; set; }
+        //Song Metadata
+        public float? Tempo { get; set; }
+        public float? Danceability { get; set; }
+        public float? Energy { get; set; }
+        public float? Valence { get; set; }
     }
 }

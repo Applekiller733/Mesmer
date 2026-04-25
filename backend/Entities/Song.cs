@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using MassTransit;
+using Pgvector;
 
 namespace SongAppApi.Entities
 {
@@ -21,7 +23,14 @@ namespace SongAppApi.Entities
         public Account CreatedBy { get; set; }
         public List<Playlist> SavedInPlaylists { get; set; } = new List<Playlist>();
         public List<Account> LikedByAccounts { get; set; } = new List<Account>();
-        //maybe also add image as a locally saved file?
-        //public File? Image { get; set; }
+
+
+        //Song Metadata
+        public string? SpotifyId { get; set; }
+        public float? Tempo { get; set; }
+        public float? Danceability { get; set; }
+        public float? Energy { get; set; }
+        public float? Valence { get; set; } // "Mood" (0 = sad, 1 = happy)
+        public Vector? Embedding { get; set; }
     }
 }

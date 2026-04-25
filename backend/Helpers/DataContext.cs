@@ -1,6 +1,7 @@
 ﻿namespace SongAppApi.Helpers
 {
     using Microsoft.EntityFrameworkCore;
+    using Pgvector;
     using SongAppApi.Entities;
     public class DataContext : DbContext
     {
@@ -18,14 +19,21 @@
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
+            //optionsBuilder.UseMySql(connectionString,
+            //    ServerVersion.AutoDetect(connectionString));
             var connectionString = Configuration.GetConnectionString("SongAppApiDatabase");
-            optionsBuilder.UseMySql(connectionString,
-                ServerVersion.AutoDetect(connectionString));
+            optionsBuilder.UseNpgsql(
+                connectionString,
+                o => o.UseVector()
+            );
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            //extension for pgvector
+            modelBuilder.HasPostgresExtension("vector");
 
             //todo check if cascade delete should be restricted?
 
@@ -43,6 +51,10 @@
             modelBuilder.Entity<Song>()
                 .Property(x => x.Id)
                 .ValueGeneratedNever();
+
+            modelBuilder.Entity<Song>()
+                 .Property(s => s.Embedding)
+                 .HasColumnType("vector(128)");
 
             modelBuilder.Entity<Playlist>()
                 .Property(x => x.Id)
@@ -70,7 +82,7 @@
                 .HasOne(p => p.CreatedBy)
                 .WithMany()
                 .HasForeignKey(p => p.CreatedById);
-                //.OnDelete(DeleteBehavior.Restrict);
+            //.OnDelete(DeleteBehavior.Restrict);
 
             //.OnDelete(DeleteBehavior.Restrict);
 
