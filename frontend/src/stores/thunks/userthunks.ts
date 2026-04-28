@@ -59,19 +59,18 @@ export const fetchUserProfile = createAsyncThunk('users/fetchUserProfile', async
     }
 })
 
-export const getProfilePicture = createAsyncThunk('users/profile-picture', async (id: string) => {
-    try {
-        const response = await apigetprofilepicture(id);
-        if (!response) {
-            throw new Error("Fetching Profile Picture Failed");
+export const getProfilePicture = createAsyncThunk(
+    "users/profile-picture",
+    async (id: string, thunkAPI) => {
+        try {
+            const blob = await apigetprofilepicture(id);
+            return blob;
+        } catch (err: any) {
+            return thunkAPI.rejectWithValue(err.message);
         }
+    }
+);
 
-        return await response.blob();
-    }
-    catch (err: any) {
-        return err.message;
-    }
-})
 
 export const register = createAsyncThunk('users/register', async (request: RegisterRequest) => {
     try {

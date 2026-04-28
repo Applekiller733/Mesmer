@@ -37,11 +37,27 @@
     white-space: nowrap;
 }
 
+.text-marquee-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+}
+ 
+.text-marquee-subtitle {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #b0b0b0;
+    line-height: 1.3;
+    margin: 4px 0 0;
+}
+ 
 .upvotes-text {
     padding-left: 8px;
     font-size: 0.9rem;
     color: #ffffff;
 }
+
 
 .audiowidget {
     position: relative;
@@ -130,6 +146,40 @@
 .audiowidget-control-button-circle:hover {
     background-color: rgba(0, 0, 0, 1) !important;
 }
+
+.audiowidget-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+ 
+.audiowidget-progress-slider {
+    flex: 1;
+    /* Override MUI's default vertical centering so the slider sits flush
+     * with the time labels. */
+    padding: 6px 0 !important;
+}
+
+.audiowidget-progress-slider:hover .MuiSlider-thumb,
+.audiowidget-progress-slider .MuiSlider-thumb.Mui-active {
+    width: 16px;
+    height: 16px;
+}
+ 
+.audiowidget-time {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-variant-numeric: tabular-nums;
+    /* Min-width keeps the layout stable as the time digits change. Without
+     * this, the slider would jitter horizontally when going from "0:09" to
+     * "0:10" etc. */
+    min-width: 2.5rem;
+    text-align: center;
+    user-select: none;
+}
+
+
  
 /* VideoWidget styles (unchanged) */
 .videowidget {
@@ -142,6 +192,8 @@
     width: 100% !important;
     height: 100% !important;
 }
+
+
 
 
 /* Button styles for consistency */
@@ -163,6 +215,14 @@ button:hover {
         max-width: 100%;
         padding: 16px;
     }
+
+    .text-marquee-title {
+        font-size: 1.3rem;
+    }
+    .text-marquee-subtitle {
+        font-size: 1rem;
+    }
+
 
     .text h4 {
         font-size: 1.3rem;

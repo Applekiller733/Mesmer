@@ -56,12 +56,24 @@ export function apifetchUserProfile(id: string) {
         .then(response => response.json())
 }
 
-export function apigetprofilepicture(id: string){
+export async function apigetprofilepicture(id: string): Promise<Blob> {
     const url = `${API_URL}/profile/${id}/picture`;
-    return fetch(url, {
-        method: "GET"
+    const response = await fetch(url, {
+        method: "GET",
+        headers: { ...authHeader(url) },
     });
+ 
+    if (!response.ok) {
+        throw new Error(
+            response.status === 404
+                ? "No profile picture"
+                : `Fetching profile picture failed (${response.status})`
+        );
+    }
+ 
+    return await response.blob();
 }
+
 
 export function apiregister(request: RegisterRequest) {
     const url = `${API_URL}/register`

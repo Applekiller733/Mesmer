@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.StaticFiles;
 using SongAppApi.Authorization;
 using SongAppApi.Entities;
+using SongAppApi.Helpers.Enumerators;
 using SongAppApi.Models.Songs;
 using SongAppApi.Services;
 
@@ -72,8 +73,8 @@ namespace SongAppApi.Controllers
             }
         }
 
-        // NEW: streams the audio file with HTTP range support so <audio> can seek.
-        // Anonymous so the player can fetch without managing auth headers in the
+        // streams the audio file with HTTP range support so <audio> can seek.
+        // anonymous so the player can fetch without managing auth headers in the
         // <audio> tag. Tighten this if you need access control.
         [AllowAnonymous]
         [HttpGet("{id}/audio")]
@@ -105,7 +106,7 @@ namespace SongAppApi.Controllers
             }
         }
 
-        // CHANGED: now accepts multipart form data. The CreateSongRequest model
+        // now accepts multipart form data, the CreateSongRequest model
         // contains the optional IFormFile SoundFile alongside the metadata.
         [HttpPost("create-song")]
         public ActionResult<SongResponse> Create([FromForm] CreateSongRequest request)
@@ -128,6 +129,44 @@ namespace SongAppApi.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
             }
         }
+
+        [HttpDelete]
+        public ActionResult Delete(DeleteSongRequest request)
+        {
+            try
+            {
+                if (Account == null) return Unauthorized();
+
+                var song = _service.Get(request.Id);
+                var isCreator = song.CreatedBy.Id == Account.Id.ToString();
+                var isAdmin = Account.Role == Role.Admin;
+                if (!isCreator && !isAdmin)
+                    return Unauthorized(new { message = "Unauthorized" });
+
+                _service.Delete(request.Id);
+                return Ok(new { message = "Song deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("flip-like")]
+        public ActionResult FlipLike(FlipLikeRequest request)
+        {
+            try
+            {
+                if (Account == null) return Unauthorized();
+                var response = _service.FlipLike(request.Id, Account);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
 
         // Helper: when a song has an uploaded audio file, set SoundUrl to the
         // streaming endpoint so the frontend can plug it straight into <audio src=…>.
