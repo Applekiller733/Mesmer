@@ -1,6 +1,6 @@
 import { IconButton, Slider, Typography, Box } from "@mui/material";
 import type { Song } from "../../models/song";
-import { useRef, useState, type ReactEventHandler } from "react";
+import { useEffect, useRef, useState, type ReactEventHandler } from "react";
 import ReactPlayer from "react-player";
 import { useSelector } from "react-redux";
 
@@ -35,23 +35,24 @@ function formatTime(seconds: number | null): string {
 
 const AudioWidget = (props: AudioWidgetProps) => {
     const { song, handleEnded, autoplay } = props;
-    const [isPlaying, setIsPlaying] = useState(false);
 
-    // IMPORTANT: in react-player v3, the ref is an HTMLVideoElement /
-    // HTMLMediaElement directly — not a wrapper object. So we read
-    // playerRef.current.currentTime and playerRef.current.duration straight
-    // off the element, the same way you would with a vanilla <audio>.
-    //
-    // The previous version used getInternalPlayer() (v2 API), which doesn't
-    // exist on v3 refs — that's why duration and currentTime never updated.
-    const playerRef = useRef<HTMLVideoElement | null>(null);
+    const [isPlaying, setIsPlaying] = useState<boolean>(autoplay === true);
 
+    const player = useRef<any>(null);
     const [currentTime, setCurrentTime] = useState<number>(0);
     const [duration, setDuration] = useState<number | null>(null);
     const [pendingSeek, setPendingSeek] = useState<number | null>(null);
 
     const effectiveVolume = useSelector(selectEffectiveVolume);
     const hasAudio = !!song.soundUrl && song.soundUrl.length > 0;
+
+    useEffect(() => {
+        if (autoplay === true) {
+            setIsPlaying(true);
+        } else {
+            setIsPlaying(false);
+        }
+    }, [autoplay]);
 
     function handlePlay() {
         if (!hasAudio) return;
@@ -64,17 +65,15 @@ const AudioWidget = (props: AudioWidgetProps) => {
     }
 
     function handleTimeUpdate() {
-        // While dragging, ignore time updates so the user's drag isn't
-        // overridden by playback ticks.
         if (pendingSeek !== null) return;
-        const p = playerRef.current;
+        const p = player.current;
         if (p && Number.isFinite(p.currentTime)) {
             setCurrentTime(p.currentTime);
         }
     }
 
     function handleDurationChange() {
-        const p = playerRef.current;
+        const p = player.current;
         if (p && Number.isFinite(p.duration)) {
             setDuration(p.duration);
         }
@@ -87,16 +86,14 @@ const AudioWidget = (props: AudioWidgetProps) => {
 
     function handleSeekCommit(_: Event | React.SyntheticEvent, value: number | number[]) {
         const v = Array.isArray(value) ? value[0] : value;
-        const p = playerRef.current;
+        const p = player.current;
         if (p) {
-            // Same HTMLMediaElement API: assign currentTime to seek.
             p.currentTime = v;
             setCurrentTime(v);
         }
         setPendingSeek(null);
     }
 
-    const shouldPlay = isPlaying || autoplay === true;
     const sliderValue = pendingSeek !== null ? pendingSeek : currentTime;
     const sliderMax = duration ?? 1;
     const seekDisabled = !hasAudio || duration === null;
@@ -140,9 +137,9 @@ const AudioWidget = (props: AudioWidgetProps) => {
                                 size="medium"
                                 onClick={handlePlay}
                                 disabled={!hasAudio}
-                                title={hasAudio ? (shouldPlay ? "Pause" : "Play") : "No audio available"}
+                                title={hasAudio ? (isPlaying ? "Pause" : "Play") : "No audio available"}
                             >
-                                {shouldPlay ? (
+                                {isPlaying ? (
                                     <PauseCircleFilled style={{ fontSize: "50px" }} />
                                 ) : (
                                     <PlayCircleFilled style={{ fontSize: "50px" }} />
@@ -158,17 +155,12 @@ const AudioWidget = (props: AudioWidgetProps) => {
             </div>
 
             {hasAudio && (
-                // Note on hiding: we use absolute positioning + tiny size
-                // off-screen rather than display:none / width:0 / height:0.
-                // For HTML5 <audio> sources display:none is fine, but for
-                // YouTube/iframe-based players in v3, hidden iframes can
-                // suppress timeupdate events. Off-screen positioning keeps
-                // the element in the layout tree and reliably dispatches
-                // events for both kinds of source.
                 <ReactPlayer
-                    ref={playerRef}
+                    ref={player}
                     src={song.soundUrl}
-                    playing={shouldPlay}
+                    // SINGLE source of truth: isPlaying. No more `||
+                    // autoplay` override that made pause impossible.
+                    playing={isPlaying}
                     volume={effectiveVolume}
                     controls={false}
                     style={{

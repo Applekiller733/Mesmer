@@ -1,10 +1,8 @@
 import { ThemeProvider } from "@emotion/react";
 import { darkTheme } from "../../../themes/themes";
-import { Box, LinearProgress, Paper } from "@mui/material";
-import Navbar from "../../../reusablecomponents/navbar";
+import { Box } from "@mui/material";
 import "./listen-playlist.css";
 import VerticalCarousel from "../../../reusablecomponents/carousel/verticalcarousel";
-import { useParams } from "react-router";
 import { useAppDispatch } from "../../../hooks/hooks";
 import { selectLoadedPlaylist } from "../../../stores/slices/playlistdataslice";
 import { useSelector } from "react-redux";
@@ -13,45 +11,43 @@ import type { EmblaOptionsType } from "embla-carousel";
 import { selectCurrentSongIndex, setIndex } from "../../../stores/slices/songdataslice";
 import { useEffect } from "react";
 
-export default function ListenPlaylist({ id }
-    :
-    { id: any }) {
+export default function ListenPlaylist({ id }: { id: any }) {
     const dispatch = useAppDispatch();
     const playlist = useSelector(selectLoadedPlaylist);
-    const songIds = playlist.songs.map((s) => s.id);
     const currentIndex = useSelector(selectCurrentSongIndex);
 
     useEffect(() => {
         dispatch(setIndex(0));
-    }, [])
+    }, [dispatch]);
 
-    function handleSongEnded() {
-        onNext();
+    function handleIndexChange(newIndex: number) {
+        dispatch(setIndex(newIndex));
     }
 
-    function onNext() {
-        if (currentIndex < songIds.length - 1) {
+    function handleSongEnded() {
+        if (currentIndex < playlist.songs.length - 1) {
             dispatch(setIndex(currentIndex + 1));
         }
     }
 
-    function onPrevious() {
-        if (currentIndex > 0) {
-            dispatch(setIndex(currentIndex - 1));
-        }
-    }
-
-
-    const SLIDES = playlist.songs.map((s) => {
-        let autoplay = undefined;
-        if (s.id === playlist.songs[currentIndex].id) {
-            autoplay = true;
-        }
+    const SLIDES = playlist.songs.map((s, i) => {
+        const autoplay = i === currentIndex ? true : undefined;
         return (
-        <SongComponent song={s} hideActions={true} onEnded={handleSongEnded} autoplay={autoplay}></SongComponent>
+            <SongComponent
+                key={s.id}
+                song={s}
+                hideActions={true}
+                onEnded={handleSongEnded}
+                autoplay={autoplay}
+            />
         );
-    })
-    const OPTIONS: EmblaOptionsType = { axis: 'y', dragFree: false, watchDrag: false };
+    });
+
+    const OPTIONS: EmblaOptionsType = {
+        axis: "y",
+        watchDrag: true,
+        dragFree: false,
+    };
 
     return (
         <ThemeProvider theme={darkTheme}>
@@ -60,10 +56,9 @@ export default function ListenPlaylist({ id }
                     slides={SLIDES}
                     options={OPTIONS}
                     currentSlideIndex={currentIndex}
-                    onNext={onNext}
-                    onPrevious={onPrevious}
-                ></VerticalCarousel>
+                    onIndexChange={handleIndexChange}
+                />
             </Box>
         </ThemeProvider>
-    )
+    );
 }
