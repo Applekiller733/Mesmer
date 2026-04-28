@@ -20,6 +20,8 @@ import type {
     VerifyEmailRequest
 } from "../../models/user";
 
+import { forceLogout } from "../../utils/helpers/userhelpers";
+
 
 export const fetchUsers = createAsyncThunk('users/fetchUsers', async () => {
     try {
@@ -94,14 +96,15 @@ export const login = createAsyncThunk('users/login', async (request: Authenticat
     }
 })
 
-export const logout = createAsyncThunk('users/logout', async (_, thunkAPI) => {
-    try {
-        return await apilogout();
-    }
-    catch (err: any) {
-        return thunkAPI.rejectWithValue(err.message);
-    }
-})
+export const logout = createAsyncThunk('users/logout', async (_, _thunkAPI) => {
+    // Clear local state immediately
+    forceLogout();
+    // Best-effort server revoke
+    apilogout().catch(() => {  });
+ 
+    return true;
+});
+
 
 export const forgotpassword = createAsyncThunk('users/forgot-password', async (request: ForgotPasswordRequest) => {
     try {

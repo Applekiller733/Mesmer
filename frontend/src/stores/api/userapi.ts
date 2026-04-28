@@ -96,46 +96,24 @@ export async function apilogin(request: AuthenticateRequest) {
     }
 
     return data; 
-
-        // .then(response => response.json())
-        // .then(user => {
-        //     console.log(user);
-        //     // publish user and start timer to refresh token
-        //     // console.log(user);
-        //     // localStorage.setItem('currentuser', JSON.stringify(user));
-        //     const usermodel: User = {
-        //         id: user.id,
-        //         username: user.userName,
-        //         email: user.email,
-        //         role: user.role,
-        //         token: user.jwtToken
-        //     }
-        //     // console.log(usermodel);
-        //     updateCurrentUserHelper(usermodel);
-        //     startRefreshTokenTimer();
-        //     return user;
-        // });
 }
 
-export async function apilogout() {
-    // revoke token, stop refresh timer, remove from local storage
+export async function apilogout(): Promise<unknown | null> {
     const url = `${API_URL}/revoke-token`;
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader(url) },
-        credentials: "include"
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error(data.message || "Logging out failed");
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeader(url) },
+            credentials: "include",
+        });
+        // 401 / 400 / network error — none of these should block local logout.
+        if (!response.ok) return null;
+        return await response.json().catch(() => null);
+    } catch {
+        return null;
     }
-
-    return data; 
-    // stopRefreshTokenTimer();
-    // // localStorage.removeItem('currentuser');
-    // deleteCurrentUserHelper();
 }
+
 
 export function apiforgotpassword(request: ForgotPasswordRequest) {
     const url = `${API_URL}/forgot-password`;
@@ -188,19 +166,7 @@ export async function apiupdateuser(request: UpdateUserRequest) {
     }
 
     return data; 
-        // .then(response => response.json())
-        // .then(user => {
-        //     const usermodel: User = {
-        //         id: user.id,
-        //         username: user.userName,
-        //         email: user.email,
-        //         role: user.role,
-        //         token: user.jwtToken
-        //     }
-        //     updateCurrentUserHelper(usermodel);
-        //     // startRefreshTokenTimer();
-        //     return user;
-        // });
+       
 }
 
 export function apideleteuser(id: string) {
@@ -211,41 +177,27 @@ export function apideleteuser(id: string) {
     })
 }
 
-export function apirefreshToken() {
+export async function apirefreshToken(): Promise<boolean> {
     const url = `${API_URL}/refresh-token`;
-    return fetch(url, {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-            ...authHeader(url)
-        },
-        credentials: "include"
-    })
-        .then(response => response.json())
-        .then(user => {
-            if (user === undefined || user === null) {
-                throw Error("Invalid user");
-            }
-            localStorage.setItem('currentuser', JSON.stringify(user));
-            startRefreshTokenTimer();
-
-            // TODO: FIX UPDATING THE USER WHEN TOKEN REFRESHES!!!!!!!!
-
-
-            const usermodel: User = {
-                id: user.id,
-                username: user.userName,
-                email: user.email,
-                role: user.role,
-                token: user.jwtToken
-            }
-            updateCurrentUserHelper(usermodel);
-            return user;
-        })
-        .catch((err) => {
-            return err;
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
         });
-
+ 
+        if (!response.ok) return false;
+ 
+        const apiUser = await response.json();
+        if (!apiUser || typeof apiUser.jwtToken !== "string") return false;
+ 
+        // updateCurrentUserHelper writes localStorage and the slice in one go.
+        updateCurrentUserHelper(apiUser);
+        return true;
+    } catch {
+        return false;
+    }
 }
+
 
 

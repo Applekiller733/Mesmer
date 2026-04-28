@@ -3,83 +3,139 @@ import { apirefreshToken } from "../../stores/api/userapi";
 import { updateCurrentUser } from "../../stores/slices/userdataslice";
 import { getAppDispatch } from "../../stores/storedispatch";
 
-export function updateCurrentUserHelper(user: User) {
+const STORAGE_KEY = 'currentuser';
+
+// storage helpers
+
+interface StoredUser {
+    id: string;
+    userName?: string;
+    email?: string;
+    role?: string;
+    jwtToken: string;
+    refreshToken?: string;
+}
+
+function readStoredUser(): StoredUser | null {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed.jwtToken !== 'string') return null;
+        return parsed as StoredUser;
+    } catch {
+        // corrupt JSON in storage, wipe so we don't keep failing.
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+    }
+}
+
+function writeStoredUser(user: StoredUser): void {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+}
+
+// Decode the payload of a JWT without verifying. The signature we couldn't
+// verify in the browser anyway — we only use `exp` to schedule a refresh.
+function decodeJwtPayload(token: string): { exp?: number } | null {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        // atob doesn't handle URL-safe base64; convert before decoding.
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(b64));
+    } catch {
+        return null;
+    }
+}
+
+// state helpers
+
+export function updateCurrentUserHelper(user: any) {
     const dispatch = getAppDispatch();
-    // console.log(user);
-    if (localStorage.getItem('currentuser')) {
-        var storageuser = JSON.parse(localStorage.getItem('currentuser') || "");
-        //todo maybe reimplement a bit more nicely
-        if (storageuser.id !== user.id) {
-            storageuser.id = user.id;
-        }
-        if (storageuser.username !== user.username) {
-            storageuser.username = user.username;
-        }
-        if (storageuser.role !== user.role) {
-            storageuser.role = user.role;
-        }
-        if (storageuser.email !== user.email) {
-            storageuser.email = user.email;
-        }
-        localStorage.setItem('currentuser', JSON.stringify(storageuser));
-    }
-    else {
-        localStorage.setItem('currentuser', JSON.stringify(user));
-    }
+
+    writeStoredUser(user);
+
+    // sync the slice
     dispatch(updateCurrentUser(user));
 }
 
 export function deleteCurrentUserHelper() {
     const dispatch = getAppDispatch();
-    localStorage.removeItem('currentuser');
+    localStorage.removeItem(STORAGE_KEY);
     const emptyuser: User = {
         id: undefined,
         username: '',
         email: '',
         role: '',
         token: '',
-    }
+    };
     dispatch(updateCurrentUser(emptyuser));
 }
 
-let refreshTokenTimeout: any;
-
-//todo verify if token refresh timer works and fix if not
-export function startRefreshTokenTimer() {
-    console.log("START OF REFRESH TOKEN TIMER");
-    console.log(localStorage.getItem('currentuser'));
-    if (localStorage.getItem('currentuser')) {
-        //@ts-ignore
-        const user = JSON.parse(localStorage.getItem('currentuser'));
-
-        console.log("INSIDE REFRESH TOKEN TIMER");
-
-        const jwtToken = JSON.parse(atob(user.jwtToken.split('.')[1]));
-
-        // console.log(jwtToken);
-        // set a timeout to refresh the token a minute before it expires
-        // console.log(jwtToken.exp);
-        const expires = new Date(jwtToken.exp * 1000);
-        const timeout = expires.getTime() - Date.now() - (60 * 1000);
-        // const timeout = 5;
-        // console.log(timeout);
-        const trials = 3;
-        // refreshTokenTimeout = setTimeout(apirefreshToken, timeout);
-        refreshTokenTimeout = setTimeout(() => { refreshTokenTrials(trials) }, timeout);
-    }
+export function forceLogout() {
+    stopRefreshTokenTimer();
+    deleteCurrentUserHelper();
 }
 
-async function refreshTokenTrials(trials: number) {
-    const timeout = 5 * 1000;
-    const response = await apirefreshToken();
-    if (typeof response === typeof Error || response === undefined || response === null && (trials > 0)) {
-        setTimeout(() => { refreshTokenTrials(trials - 1) }, timeout)
+// refresh timer
+
+let refreshTokenTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedules a refresh ~1 minute before the current JWT expires. Idempotent:
+ * calling twice cancels the previous timer.
+ *
+ * Behaviors worth knowing:
+ *   - If the stored JWT is already expired (or expires within the next
+ *     minute), we attempt a refresh immediately rather than scheduling a
+ *     no-op timer.
+ *   - If no user is stored, this is a no-op. Safe to call from app bootstrap.
+ *   - If the refresh fails, we force-logout. No silent retry loops — the
+ *     previous version's retry logic was both wrong AND hid the symptom.
+ */
+export function startRefreshTokenTimer() {
+    stopRefreshTokenTimer();
+
+    const user = readStoredUser();
+    if (!user) return;
+
+    const payload = decodeJwtPayload(user.jwtToken);
+    if (!payload?.exp) {
+        // token is structurally invalid — can't schedule
+        // try a refresh immediately, the refresh cookie may still be valid
+        attemptRefreshNow();
+        return;
     }
-    else {
-        startRefreshTokenTimer();
+
+    const expiresAt = payload.exp * 1000;
+    const refreshAt = expiresAt - 60 * 1000; // 1 minute before expiry
+    const delay = refreshAt - Date.now();
+
+    if (delay <= 0) {
+        // already expired or expiring imminently — refresh now.
+        attemptRefreshNow();
+        return;
     }
+
+    refreshTokenTimeout = setTimeout(attemptRefreshNow, delay);
 }
 
 export function stopRefreshTokenTimer() {
-    clearTimeout(refreshTokenTimeout);
+    if (refreshTokenTimeout !== null) {
+        clearTimeout(refreshTokenTimeout);
+        refreshTokenTimeout = null;
+    }
+}
+
+async function attemptRefreshNow() {
+    const ok = await apirefreshToken();
+    if (ok) {
+        // apirefreshToken already wrote new state and called updateCurrentUserHelper.
+        // Schedule the next refresh based on the new token's exp.
+        startRefreshTokenTimer();
+    } else {
+        // Refresh cookie expired, revoked, or backend unreachable.
+        // Don't strand the user — clear local state so they can log in again.
+        forceLogout();
+    }
 }
