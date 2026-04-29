@@ -362,6 +362,10 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+#song files 
+.mp3
+
 appsettings.json
 
 .env
+

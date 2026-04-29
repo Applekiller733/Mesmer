@@ -14,23 +14,37 @@ import {
     unloadSong,
 } from "../../stores/slices/songdataslice";
 import { useAppDispatch } from "../../hooks/hooks";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import SongComponent from "../../reusablecomponents/song/songcomponent";
 import type { EmblaOptionsType } from "embla-carousel";
 import { fetchSongById, fetchSongIds } from "../../stores/thunks/songthunks";
+import RecommendationModeSelector from "./recommendationmodeselector";
+import {
+    selectRecommendationMode,
+    selectRecommendedIds,
+} from "../../stores/slices/recommendationmodeslice";
 
 export default function ForYou() {
-    const loadedSongs = useSelector(selectLoadedSongs);
-    const songIds = useSelector(selectAllSongIds);
-    const currentIndex = useSelector(selectCurrentSongIndex);
     const dispatch = useAppDispatch();
+    const loadedSongs = useSelector(selectLoadedSongs);
+    const allSongIds = useSelector(selectAllSongIds);
+    const currentIndex = useSelector(selectCurrentSongIndex);
+    const mode = useSelector(selectRecommendationMode);
+    const recommendedIds = useSelector(selectRecommendedIds);
 
     useEffect(() => {
         dispatch(fetchSongIds());
     }, [dispatch]);
 
-    // window-loading: keep the 3 songs around currentIndex, drop the rest
-    // runs whenever the song list or currentIndex changes
+    const songIds = useMemo(() => {
+        if (mode.kind === "playlist") return recommendedIds;
+        return allSongIds;
+    }, [mode, recommendedIds, allSongIds]);
+
+    useEffect(() => {
+        dispatch(setIndex(0));
+    }, [mode, dispatch]);
+
     useEffect(() => {
         (async () => {
             const idsToKeep = [
@@ -52,8 +66,6 @@ export default function ForYou() {
                 }
             }
         })();
-        // loadedSongs intentionally omitted from deps — including it would
-        // re-run the effect after every load/unload, creating a fetch loop
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [songIds, currentIndex]);
 
@@ -91,6 +103,9 @@ export default function ForYou() {
         <ThemeProvider theme={darkTheme}>
             <Box className="for-you">
                 <Navbar />
+                <Box sx={{ p: 2 }}>
+                    <RecommendationModeSelector />
+                </Box>
                 <div className="song-list">
                     <VerticalCarousel
                         slides={SLIDES}

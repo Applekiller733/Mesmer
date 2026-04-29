@@ -10,8 +10,6 @@ using Microsoft.AspNetCore.Http.Features;
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
-
-// add services to DI container
 {
     var services = builder.Services;
     var env = builder.Environment;
@@ -28,6 +26,19 @@ var builder = WebApplication.CreateBuilder(args);
 
     // configure strongly typed settings object
     services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
+
+    builder.Services.AddHttpClient<IRecommendationService, RecommendationService>(client =>
+    {
+        var baseUrl = builder.Configuration["RecommendationService:BaseUrl"]
+                      ?? "http://localhost:8000";
+        client.BaseAddress = new Uri(baseUrl);
+
+        // Reasonable timeout — the Python query is normally <100ms, but if
+        // the service is hung we don't want to block .NET requests forever.
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+
+
     builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
 
     // file upload config

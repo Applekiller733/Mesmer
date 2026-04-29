@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using MassTransit;
 using Pgvector;
+using SongAppApi.Helpers.Enumerators;
 
 namespace SongAppApi.Entities
 {
@@ -39,11 +40,11 @@ namespace SongAppApi.Entities
 
 
         //Song Metadata
-        public string? MBId { get; set; }
-        public float? Tempo { get; set; }
-        public float? Danceability { get; set; }
-        public float? Energy { get; set; }
-        public float? Valence { get; set; } // "Mood" (0 = sad, 1 = happy)
-        public Vector? Embedding { get; set; }
+        public Guid? MusicBrainzId { get; set; }
+        public float[]? RawFeatures { get; set; }
+        public Vector? PcaFeatures { get; set; }
+        public EnrichmentStatus EnrichmentStatus { get; set; } = EnrichmentStatus.Pending;
+        public string? EnrichmentSource { get; set; }
+
     }
 }

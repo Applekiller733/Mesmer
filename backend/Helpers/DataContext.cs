@@ -53,8 +53,8 @@
                 .ValueGeneratedNever();
 
             modelBuilder.Entity<Song>()
-                 .Property(s => s.Embedding)
-                 .HasColumnType("vector(128)");
+                .Property(s => s.PcaFeatures)
+                .HasColumnType("vector(15)");
 
             modelBuilder.Entity<Playlist>()
                 .Property(x => x.Id)
