@@ -38,6 +38,8 @@ namespace SongAppApi.Services
         AccountResponse Update(string id, UpdateRequest model, File file);
         AccountResponse Update(string id, UpdateRequest model);
         void Delete(string id);
+        IEnumerable<AccountResponse> SearchByUsername(string query, string? excludeId = null);
+
     }
     public class AccountService : IAccountService
     {
@@ -327,6 +329,34 @@ namespace SongAppApi.Services
             _context.Accounts.Remove(account);
             _context.SaveChanges();
         }
+
+        public IEnumerable<AccountResponse> SearchByUsername(string query, string? excludeId = null)
+        {
+            // Empty query → empty result. Don't dump the entire user table.
+            if (string.IsNullOrWhiteSpace(query))
+                return Enumerable.Empty<AccountResponse>();
+
+            var trimmed = query.Trim();
+
+            var like = $"%{trimmed}%";
+
+            var q = _context.Accounts
+                .Where(a => EF.Functions.ILike(a.UserName, like));
+
+            // Exclude the searcher themselves, when the caller passes their id.
+            if (!string.IsNullOrEmpty(excludeId) && Guid.TryParse(excludeId, out var excludeGuid))
+            {
+                q = q.Where(a => a.Id != excludeGuid);
+            }
+
+            var matches = q
+                .OrderBy(a => a.UserName)
+                .Take(20)
+                .ToList();
+
+            return _mapper.Map<IEnumerable<AccountResponse>>(matches);
+        }
+
 
         // helper methods
 

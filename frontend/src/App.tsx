@@ -18,6 +18,7 @@ import ForYou from './pages/for-you/for-you';
 import AdminDashboard from './pages/admin/admin';
 import SongUpload from './pages/songupload/songupload';
 import Library from './pages/library/library';
+import FriendsPage from "./pages/friends/friends";
 import {
     startRefreshTokenTimer,
     stopRefreshTokenTimer,
@@ -68,6 +69,7 @@ function App() {
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/song-upload" element={<SongUpload />} />
                     <Route path="/library" element={<Library />} />
+                    <Route path="/friends" element={<FriendsPage />} />
                 </Routes>
             </BrowserRouter>
         </ThemeProvider>

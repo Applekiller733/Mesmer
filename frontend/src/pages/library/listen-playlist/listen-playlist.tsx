@@ -45,7 +45,13 @@ export default function ListenPlaylist({ id }: { id: any }) {
 
     const OPTIONS: EmblaOptionsType = {
         axis: "y",
-        watchDrag: true,
+        watchDrag: (_emblaApi, evt) => {
+            const target = evt.target as HTMLElement | null;
+            if (!target) return true;
+            if (target.closest(".audiowidget-progress-row")) return false;
+            if (target.closest(".volumecontrol")) return false;
+            return true;
+        },
         dragFree: false,
     };
 

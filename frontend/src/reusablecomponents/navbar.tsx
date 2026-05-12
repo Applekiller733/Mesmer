@@ -5,95 +5,124 @@ import { useEffect, useState } from "react";
 import type { User } from "../models/user";
 import { selectCurrentUser } from "../stores/slices/userdataslice";
 import { useSelector } from "react-redux";
-import './navbar.css';
-import { useAppDispatch, useDeleteCurrentUser } from "../hooks/hooks";
+import "./navbar.css";
+import { useAppDispatch } from "../hooks/hooks";
 import { logout } from "../stores/thunks/userthunks";
-import { deleteCurrentUserHelper, stopRefreshTokenTimer } from "../utils/helpers/userhelpers";
-import React from "react";
+import {
+    deleteCurrentUserHelper,
+    stopRefreshTokenTimer,
+} from "../utils/helpers/userhelpers";
+import UserSearch from "./usersearch/usersearch";
+import FriendRequestsBadge, {
+    useFriendshipPolling,
+} from "./friendrequestsbadge";
 
+
+function LoggedInNavbarExtras() {
+    useFriendshipPolling();
+    return (
+        <>
+            <Box sx={{ ml: 2 }}>
+                <UserSearch />
+            </Box>
+            <Box sx={{ ml: 1 }}>
+                <FriendRequestsBadge />
+            </Box>
+        </>
+    );
+}
 
 export default function Navbar() {
-  const currentuser: User = useSelector(selectCurrentUser);
-  const dispatch = useAppDispatch();
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  // const deleteCurrentUserHook = useDeleteCurrentUser();
+    const currentuser: User = useSelector(selectCurrentUser);
+    const dispatch = useAppDispatch();
+    const [loggedIn, setLoggedIn] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    setLoggedIn(currentuser !== undefined && currentuser.id !== undefined);
-    setIsAdmin (currentuser.role === 'Admin' || currentuser.role === 'admin');
-  }, [currentuser])
+    useEffect(() => {
+        setLoggedIn(currentuser !== undefined && currentuser.id !== undefined);
+        setIsAdmin(currentuser.role === "Admin" || currentuser.role === "admin");
+    }, [currentuser]);
 
-  async function handleLogout() {
-    const response = await dispatch(logout());
-
-    console.log(response.meta.requestStatus);
-    if (response.meta.requestStatus === 'fulfilled'){
-      deleteCurrentUserHelper();
-      stopRefreshTokenTimer();
+    async function handleLogout() {
+        const response = await dispatch(logout());
+        if (response.meta.requestStatus === "fulfilled") {
+            deleteCurrentUserHelper();
+            stopRefreshTokenTimer();
+        } else {
+            console.log("Logging out failed");
+        }
     }
-    else {
-      console.log("Logging out failed");
-    }
-    // const emptyuser: User = {
-    //   id: undefined,
-    //   username: '',
-    //   email: '',
-    //   role: '',
-    //   token: '',
-    // }
-    // deleteCurrentUserHook(emptyuser);
-  }
 
-  return (
-    <ThemeProvider theme={darkTheme}>
-      <AppBar position="static" className="navbar">
-        <Toolbar className="navbar-toolbar">
+    return (
+        <ThemeProvider theme={darkTheme}>
+            <AppBar position="static" className="navbar">
+                <Toolbar className="navbar-toolbar">
+                    <Typography variant="h6" className="navbar-title">
+                        SongApp
+                    </Typography>
 
-          <Typography variant="h6" className="navbar-title">
-            SongApp
-          </Typography>
+                    <Box className="navbar-links">
+                        <Button color="inherit" href="/">
+                            Home
+                        </Button>
+                        {loggedIn && (
+                            <Button color="inherit" href="/for-you">
+                                For You
+                            </Button>
+                        )}
+                        {loggedIn && (
+                            <Button color="inherit" href="/library">
+                                Library
+                            </Button>
+                        )}
+                        {loggedIn && (
+                            <Button color="inherit" href="/friends">
+                                Friends
+                            </Button>
+                        )}
+                        {isAdmin && (
+                            <Button color="inherit" href="/admin">
+                                Admin
+                            </Button>
+                        )}
+                    </Box>
 
+                    {/* Logged-in-only: search + badge + polling. */}
+                    {loggedIn && <LoggedInNavbarExtras />}
 
-          <Box className="navbar-links">
-            <Button color="inherit" href='/'>Home</Button>
-            {
-              loggedIn && <Button color="inherit" href='/for-you'>For You</Button>
-            }
-            {
-              loggedIn && <Button color="inherit" href='/library'>Library</Button>
-            }
-            {
-              isAdmin && <Button color="inherit" href='/admin'>Admin</Button>
-            }
-          </Box>
+                    <Box className="navbar-auth">
+                        {loggedIn !== true ? (
+                            <>
+                                <Button color="primary" href="/login">
+                                    Login
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    color="secondary"
+                                    href="/signup"
+                                >
+                                    Sign Up
+                                </Button>
+                            </>
+                        ) : (
+                            <Button color="error" onClick={handleLogout}>
+                                Logout
+                            </Button>
+                        )}
+                    </Box>
 
-
-          <Box className="navbar-auth">
-            {loggedIn !== true ?
-              <>
-                <Button color="primary" href='/login'>Login</Button>
-                <Button variant="contained" color="secondary" href='/signup'>
-                  Sign Up
-                </Button>
-              </>
-              :
-              <>
-                <Button color="error" onClick={handleLogout}>Logout</Button>
-              </>
-            }
-          </Box>
-
-          <Box className="navbar-profile">
-            {
-              loggedIn && 
-              <>
-                <Button color="inherit" href={`/profile/${currentuser.id}`}>Profile</Button>
-              </>
-            }
-          </Box>
-        </Toolbar>
-      </AppBar>
-    </ThemeProvider>
-  );
+                    <Box className="navbar-profile">
+                        {loggedIn && (
+                            <Button
+                                color="inherit"
+                                href={`/profile/${currentuser.id}`}
+                            >
+                                Profile
+                            </Button>
+                        )}
+                    </Box>
+                </Toolbar>
+            </AppBar>
+        </ThemeProvider>
+    );
 }

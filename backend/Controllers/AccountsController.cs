@@ -319,6 +319,24 @@
             }
         }
 
+        [Authorization.Authorize]
+        [HttpGet("search")]
+        public ActionResult<IEnumerable<AccountResponse>> Search([FromQuery] string q)
+        {
+            try
+            {
+                var excludeId = Account?.Id.ToString();
+                var matches = _accountService.SearchByUsername(q, excludeId);
+                return Ok(matches);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new { message = ex.Message });
+            }
+        }
+
+
         // helper methods
 
         private void setTokenCookie(string token)

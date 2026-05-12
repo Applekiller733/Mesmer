@@ -43,7 +43,13 @@ namespace SongAppApi.Helpers
             CreateMap<Song, SongResponse>()
                 .ForMember(dest => dest.LikedByAccountIds,
                     opt 
-                        => opt.MapFrom(src => src.LikedByAccounts.Select(a => a.Id).ToList()));
+                        => opt.MapFrom(src => src.LikedByAccounts.Select(a => a.Id).ToList()))
+                .ForMember(
+                            dest => dest.SoundUrl,
+                            opt => opt.MapFrom<SoundUrlResolver>()
+                );
+            
+
             CreateMap<Song, UpvotesResponse>();
 
             CreateMap<CreatePlaylistRequest, Playlist>()
@@ -55,6 +61,21 @@ namespace SongAppApi.Helpers
                     opt
                         => opt.MapFrom<UpdatePlaylistSongResolver>());
             CreateMap<Playlist, PlaylistResponse>();
+
+            CreateMap<Entities.Friendship, Models.Friendships.FriendshipResponse>()
+                .ForMember(
+                    dest => dest.SenderId,
+                    opt => opt.MapFrom(src => src.SenderId.ToString()))
+                .ForMember(
+                    dest => dest.ReceiverId,
+                    opt => opt.MapFrom(src => src.ReceiverId.ToString()))
+                .ForMember(
+                    dest => dest.Id,
+                    opt => opt.MapFrom(src => src.Id.ToString()))
+                .ForMember(
+                    dest => dest.Status,
+                    opt => opt.MapFrom(src => (int)src.Status));
+
         }
     }
 }

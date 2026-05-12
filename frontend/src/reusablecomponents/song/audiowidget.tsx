@@ -33,30 +33,69 @@ function formatTime(seconds: number | null): string {
     return `${mins}:${padSecs}`;
 }
 
+function resolveSoundUrl(raw: string | undefined | null): string | undefined {
+    if (!raw) return undefined;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const base = import.meta.env.VITE_API_URL ?? "";
+    return `${base.replace(/\/$/, "")}${raw.startsWith("/") ? raw : `/${raw}`}`;
+}
+
+const PLAY_TIMEOUT_MS = 500;
+
 const AudioWidget = (props: AudioWidgetProps) => {
     const { song, handleEnded, autoplay } = props;
-
     const [isPlaying, setIsPlaying] = useState<boolean>(autoplay === true);
 
-    const player = useRef<any>(null);
+    const player = useRef<HTMLVideoElement | null>(null);
+    const playTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const [currentTime, setCurrentTime] = useState<number>(0);
     const [duration, setDuration] = useState<number | null>(null);
     const [pendingSeek, setPendingSeek] = useState<number | null>(null);
 
     const effectiveVolume = useSelector(selectEffectiveVolume);
-    const hasAudio = !!song.soundUrl && song.soundUrl.length > 0;
+
+    const resolvedSrc = resolveSoundUrl(song.soundUrl);
+    const hasAudio = !!resolvedSrc;
 
     useEffect(() => {
-        if (autoplay === true) {
-            setIsPlaying(true);
-        } else {
-            setIsPlaying(false);
-        }
+        setIsPlaying(autoplay === true);
     }, [autoplay]);
+
+    useEffect(() => {
+        if (playTimeoutRef.current !== null) {
+            clearTimeout(playTimeoutRef.current);
+            playTimeoutRef.current = null;
+        }
+
+        if (isPlaying && hasAudio) {
+            playTimeoutRef.current = setTimeout(() => {
+                playTimeoutRef.current = null;
+                const p = player.current;
+                if (p && p.paused) {
+                    setIsPlaying(false);
+                }
+            }, PLAY_TIMEOUT_MS);
+        }
+
+        return () => {
+            if (playTimeoutRef.current !== null) {
+                clearTimeout(playTimeoutRef.current);
+                playTimeoutRef.current = null;
+            }
+        };
+    }, [isPlaying, hasAudio]);
 
     function handlePlay() {
         if (!hasAudio) return;
         setIsPlaying((prev) => !prev);
+    }
+
+    function handlePlaying() {
+        if (playTimeoutRef.current !== null) {
+            clearTimeout(playTimeoutRef.current);
+            playTimeoutRef.current = null;
+        }
     }
 
     function handleEndedPlaying() {
@@ -156,10 +195,8 @@ const AudioWidget = (props: AudioWidgetProps) => {
 
             {hasAudio && (
                 <ReactPlayer
-                    ref={player}
-                    src={song.soundUrl}
-                    // SINGLE source of truth: isPlaying. No more `||
-                    // autoplay` override that made pause impossible.
+                    ref={player as any}
+                    src={resolvedSrc}
                     playing={isPlaying}
                     volume={effectiveVolume}
                     controls={false}
@@ -175,6 +212,7 @@ const AudioWidget = (props: AudioWidgetProps) => {
                     onEnded={handleEnded ?? handleEndedPlaying}
                     onTimeUpdate={handleTimeUpdate}
                     onDurationChange={handleDurationChange}
+                    onPlaying={handlePlaying}
                 />
             )}
         </div>

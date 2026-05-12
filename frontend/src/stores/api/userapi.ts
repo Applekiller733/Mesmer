@@ -211,5 +211,19 @@ export async function apirefreshToken(): Promise<boolean> {
     }
 }
 
+export async function apisearchusersbyusername(query: string): Promise<any[]> {
+    const url = `${API_URL}/search?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", ...authHeader(url) },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.message || "Searching users failed");
+    }
+    return data;
+}
+
+
 
 
