@@ -45,8 +45,14 @@ import {
     apideclinerequest,
     apiremovefriend,
     apiunblockuser,
+    type Friendship,
 } from "../../stores/api/friendshipapi";
-import { otherUserId } from "../../utils/helpers/friendshiphelpers";
+import {
+    otherUserId,
+    otherUserName,
+    otherFriendCode,
+    formatFriendCode,
+} from "../../utils/helpers/friendshiphelpers";
 import "./friends.css";
 
 type TabKey = "friends" | "incoming" | "outgoing" | "blocked";
@@ -170,15 +176,56 @@ export default function FriendsPage() {
     );
 }
 
+// tab content components
+//
+// Each tab renders the row's username + friend code rather than the
+// raw UUID. The friend code is shown smaller and dimmer — informational
+// for disambiguation, not the primary read.
+
 interface BaseTabProps {
     loading: boolean;
     currentUserId: string;
     onOpen: (userId: string) => void;
 }
 
+/**
+ * Reusable name + code stack. Used by every tab so the formatting stays
+ * consistent — username on top in normal weight, friend code below in a
+ * smaller dim font.
+ */
+function UserLabel({
+    name,
+    code,
+    onClick,
+}: {
+    name: string;
+    code: string;
+    onClick: () => void;
+}) {
+    return (
+        <Box
+            onClick={onClick}
+            sx={{
+                cursor: "pointer",
+                "&:hover .username": { textDecoration: "underline" },
+            }}
+        >
+            <Typography variant="body1" className="username">
+                {name || "(unknown)"}
+            </Typography>
+            <Typography
+                variant="caption"
+                sx={{ opacity: 0.6, fontFamily: "monospace" }}
+            >
+                {formatFriendCode(code)}
+            </Typography>
+        </Box>
+    );
+}
+
 function FriendsTab(
     props: BaseTabProps & {
-        rows: Array<{ id: string; senderId: string; receiverId: string }>;
+        rows: Friendship[];
         onRemove: (otherUserId: string) => void | Promise<void>;
     }
 ) {
@@ -187,20 +234,19 @@ function FriendsTab(
     return (
         <List>
             {props.rows.map((r) => {
-                const other = otherUserId(r as any, props.currentUserId);
+                const otherId = otherUserId(r, props.currentUserId);
+                const name = otherUserName(r, props.currentUserId);
+                const code = otherFriendCode(r, props.currentUserId);
                 return (
                     <ListItem key={r.id} divider>
                         <ListItemText
                             primary={
-                                <Button
-                                    variant="text"
-                                    onClick={() => props.onOpen(other)}
-                                    sx={{ textTransform: "none", p: 0 }}
-                                >
-                                    {other}
-                                </Button>
+                                <UserLabel
+                                    name={name}
+                                    code={code}
+                                    onClick={() => props.onOpen(otherId)}
+                                />
                             }
-                            secondary="Friends"
                         />
                         <Button
                             variant="outlined"
@@ -208,7 +254,7 @@ function FriendsTab(
                             size="small"
                             onClick={async () => {
                                 if (!confirm("Remove this friend?")) return;
-                                await props.onRemove(other);
+                                await props.onRemove(otherId);
                             }}
                         >
                             Remove
@@ -222,9 +268,9 @@ function FriendsTab(
 
 function IncomingTab(
     props: BaseTabProps & {
-        rows: Array<{ id: string; senderId: string; receiverId: string }>;
-        onAccept: (row: any) => void | Promise<void>;
-        onDecline: (row: any) => void | Promise<void>;
+        rows: Friendship[];
+        onAccept: (row: Friendship) => void | Promise<void>;
+        onDecline: (row: Friendship) => void | Promise<void>;
     }
 ) {
     if (props.loading) return <CenteredSpinner />;
@@ -235,29 +281,19 @@ function IncomingTab(
                 <ListItem key={r.id} divider>
                     <ListItemText
                         primary={
-                            <Button
-                                variant="text"
+                            <UserLabel
+                                name={r.senderUserName}
+                                code={r.senderFriendCode}
                                 onClick={() => props.onOpen(r.senderId)}
-                                sx={{ textTransform: "none", p: 0 }}
-                            >
-                                {r.senderId}
-                            </Button>
+                            />
                         }
                         secondary="wants to be your friend"
                     />
                     <ButtonGroup size="small">
-                        <Button
-                            color="success"
-                            variant="contained"
-                            onClick={() => props.onAccept(r)}
-                        >
+                        <Button color="success" variant="contained" onClick={() => props.onAccept(r)}>
                             Accept
                         </Button>
-                        <Button
-                            color="error"
-                            variant="outlined"
-                            onClick={() => props.onDecline(r)}
-                        >
+                        <Button color="error" variant="outlined" onClick={() => props.onDecline(r)}>
                             Decline
                         </Button>
                     </ButtonGroup>
@@ -269,8 +305,8 @@ function IncomingTab(
 
 function OutgoingTab(
     props: BaseTabProps & {
-        rows: Array<{ id: string; senderId: string; receiverId: string }>;
-        onCancel: (row: any) => void | Promise<void>;
+        rows: Friendship[];
+        onCancel: (row: Friendship) => void | Promise<void>;
     }
 ) {
     if (props.loading) return <CenteredSpinner />;
@@ -281,13 +317,11 @@ function OutgoingTab(
                 <ListItem key={r.id} divider>
                     <ListItemText
                         primary={
-                            <Button
-                                variant="text"
+                            <UserLabel
+                                name={r.receiverUserName}
+                                code={r.receiverFriendCode}
                                 onClick={() => props.onOpen(r.receiverId)}
-                                sx={{ textTransform: "none", p: 0 }}
-                            >
-                                {r.receiverId}
-                            </Button>
+                            />
                         }
                         secondary="Pending — sent by you"
                     />
@@ -309,8 +343,8 @@ function OutgoingTab(
 
 function BlockedTab(
     props: BaseTabProps & {
-        rows: Array<{ id: string; senderId: string; receiverId: string }>;
-        onUnblock: (row: any) => void | Promise<void>;
+        rows: Friendship[];
+        onUnblock: (row: Friendship) => void | Promise<void>;
     }
 ) {
     if (props.loading) return <CenteredSpinner />;
@@ -318,26 +352,22 @@ function BlockedTab(
     return (
         <List>
             {props.rows.map((r) => {
-                const other = otherUserId(r as any, props.currentUserId);
+                const otherId = otherUserId(r, props.currentUserId);
+                const name = otherUserName(r, props.currentUserId);
+                const code = otherFriendCode(r, props.currentUserId);
                 return (
                     <ListItem key={r.id} divider>
                         <ListItemText
                             primary={
-                                <Button
-                                    variant="text"
-                                    onClick={() => props.onOpen(other)}
-                                    sx={{ textTransform: "none", p: 0 }}
-                                >
-                                    {other}
-                                </Button>
+                                <UserLabel
+                                    name={name}
+                                    code={code}
+                                    onClick={() => props.onOpen(otherId)}
+                                />
                             }
                             secondary="Blocked"
                         />
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => props.onUnblock(r)}
-                        >
+                        <Button variant="outlined" size="small" onClick={() => props.onUnblock(r)}>
                             Unblock
                         </Button>
                     </ListItem>

@@ -7,7 +7,6 @@ using SongAppApi.Models.Friendships;
 
 namespace SongAppApi.Services
 {
-    //verifica
     public interface IFriendshipService
     {
         FriendshipResponse SendRequest(string senderId, string receiverId);
@@ -25,36 +24,6 @@ namespace SongAppApi.Services
         int CountIncomingRequests(string userId);
     }
 
-    /// <summary>
-    /// Implements the friendship state machine. The legal transitions:
-    ///
-    ///   (no row) ──SendRequest──> Pending
-    ///                                │
-    ///                                ├──AcceptRequest──> Accepted
-    ///                                │
-    ///                                └──DeclineRequest──> (no row)
-    ///
-    ///   Accepted ──RemoveFriend──> (no row)
-    ///
-    ///   any state ──Block──> Blocked  (existing rows in either direction
-    ///                                  are removed first; one Blocked row
-    ///                                  is created from blocker→blocked)
-    ///
-    ///   Blocked ──Unblock──> (no row)  (only the blocker can unblock;
-    ///                                   does not restore prior friendship)
-    ///
-    /// Authority rules:
-    ///   - SendRequest: only the sender can initiate.
-    ///   - AcceptRequest / DeclineRequest: only the receiver can decide.
-    ///   - RemoveFriend: either party.
-    ///   - Block / Unblock: only the user whose action it represents.
-    ///
-    /// Block invisibility: if A blocks B, and B subsequently sends A a
-    /// request, the call SUCCEEDS silently from B's perspective but no
-    /// row is actually inserted (so A is never notified). This is the
-    /// standard "shadow blocking" UX — the blocked user shouldn't be
-    /// able to detect the block.
-    /// </summary>
     public class FriendshipService : IFriendshipService
     {
         private readonly DataContext _context;
@@ -66,7 +35,6 @@ namespace SongAppApi.Services
             _mapper = mapper;
         }
 
-        // -------------------- State transitions --------------------
 
         public FriendshipResponse SendRequest(string senderId, string receiverId)
         {
@@ -295,10 +263,9 @@ namespace SongAppApi.Services
         {
             var guid = ParseGuid(userId, "userId");
 
-            // "My friends" = accepted rows where I'm either party. Filter
-            // out blocks because blocks aren't friendships even if the
-            // status sometimes overlaps in transit.
             var rows = _context.Friendships
+                .Include(f => f.Sender)
+                .Include(f => f.Receiver)
                 .Where(f => f.Status == FriendshipStatus.Accepted &&
                             (f.SenderId == guid || f.ReceiverId == guid))
                 .OrderByDescending(f => f.UpdatedAt ?? f.CreatedAt)
@@ -312,6 +279,8 @@ namespace SongAppApi.Services
             var guid = ParseGuid(userId, "userId");
 
             var rows = _context.Friendships
+                .Include(f => f.Sender)
+                .Include(f => f.Receiver)
                 .Where(f => f.Status == FriendshipStatus.Pending && f.ReceiverId == guid)
                 .OrderByDescending(f => f.CreatedAt)
                 .ToList();
@@ -324,6 +293,8 @@ namespace SongAppApi.Services
             var guid = ParseGuid(userId, "userId");
 
             var rows = _context.Friendships
+                .Include(f => f.Sender)
+                .Include(f => f.Receiver)
                 .Where(f => f.Status == FriendshipStatus.Pending && f.SenderId == guid)
                 .OrderByDescending(f => f.CreatedAt)
                 .ToList();
@@ -336,12 +307,15 @@ namespace SongAppApi.Services
             var guid = ParseGuid(userId, "userId");
 
             var rows = _context.Friendships
+                .Include(f => f.Sender)
+                .Include(f => f.Receiver)
                 .Where(f => f.Status == FriendshipStatus.Blocked && f.SenderId == guid)
                 .OrderByDescending(f => f.CreatedAt)
                 .ToList();
 
             return _mapper.Map<IEnumerable<FriendshipResponse>>(rows);
         }
+
 
         public int CountIncomingRequests(string userId)
         {
@@ -350,7 +324,7 @@ namespace SongAppApi.Services
                 f.Status == FriendshipStatus.Pending && f.ReceiverId == guid);
         }
 
-        // -------------------- Helpers --------------------
+        // helpers
 
         /// <summary>
         /// Parses two user IDs into Guids. Throws AppException with a

@@ -4,6 +4,7 @@ import { Box, Button, Paper } from "@mui/material";
 import Navbar from "../../reusablecomponents/navbar";
 import "./profile.css";
 import SmallProfile from "../../reusablecomponents/profile/smallprofile";
+import FriendCodeChip from "../../reusablecomponents/profile/friendcodechip";
 import { useAppDispatch } from "../../hooks/hooks";
 import { useEffect } from "react";
 import {
@@ -34,6 +35,15 @@ export default function Profile() {
                 <Navbar />
                 <Paper className="profile-paper">
                     <SmallProfile {...profile} id={paramid} />
+                    {profile.friendCode && (
+                        <Box sx={{ mt: 2 }}>
+                            <FriendCodeChip
+                                code={profile.friendCode}
+                                label={isOwner ? "Your friend code" : "Friend code"}
+                            />
+                        </Box>
+                    )}
+
                     <Box
                         sx={{
                             mt: 2,
@@ -43,7 +53,7 @@ export default function Profile() {
                             flexWrap: "wrap",
                         }}
                     >
-                        {isOwner && (
+                        {isOwner || isAdmin && (
                             <Button
                                 href={`/profile/${paramid}/edit`}
                                 color="inherit"
@@ -51,15 +61,6 @@ export default function Profile() {
                             >
                                 Edit Profile
                             </Button>
-                        )}
-                        {isAdmin && !isOwner && (
-                            <Button
-                            href={`/profile/${paramid}/edit`}
-                            color="inherit"
-                            variant="outlined"
-                        >
-                            Edit Profile
-                        </Button>
                         )}
                         {!isOwner && paramid && (
                             <FriendshipButton targetUserId={paramid} />

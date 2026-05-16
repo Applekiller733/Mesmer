@@ -12,10 +12,10 @@ import {
     deleteCurrentUserHelper,
     stopRefreshTokenTimer,
 } from "../utils/helpers/userhelpers";
-import UserSearch from "./usersearch/usersearch";
+import UserSearch from "./navbar/usersearch";
 import FriendRequestsBadge, {
     useFriendshipPolling,
-} from "./friendrequestsbadge";
+} from "./navbar/friendrequestsbadge";
 
 
 function LoggedInNavbarExtras() {

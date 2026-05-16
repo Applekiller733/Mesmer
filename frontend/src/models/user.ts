@@ -40,6 +40,7 @@ export interface UserProfile {
     role: string,
     createdAt: string,
     updatedAt: string,
+    friendCode: string,
 }
 
 export interface UpdateUserRequest{

@@ -63,18 +63,18 @@ namespace SongAppApi.Helpers
             CreateMap<Playlist, PlaylistResponse>();
 
             CreateMap<Entities.Friendship, Models.Friendships.FriendshipResponse>()
-                .ForMember(
-                    dest => dest.SenderId,
-                    opt => opt.MapFrom(src => src.SenderId.ToString()))
-                .ForMember(
-                    dest => dest.ReceiverId,
-                    opt => opt.MapFrom(src => src.ReceiverId.ToString()))
-                .ForMember(
-                    dest => dest.Id,
-                    opt => opt.MapFrom(src => src.Id.ToString()))
-                .ForMember(
-                    dest => dest.Status,
-                    opt => opt.MapFrom(src => (int)src.Status));
+                .ForMember(d => d.Id, opt => opt.MapFrom(s => s.Id.ToString()))
+                .ForMember(d => d.SenderId, opt => opt.MapFrom(s => s.SenderId.ToString()))
+                .ForMember(d => d.SenderUserName,
+                    opt => opt.MapFrom(s => s.Sender != null ? s.Sender.UserName : null))
+                .ForMember(d => d.SenderFriendCode,
+                    opt => opt.MapFrom(s => s.Sender != null ? s.Sender.FriendCode : null))
+                .ForMember(d => d.ReceiverId, opt => opt.MapFrom(s => s.ReceiverId.ToString()))
+                .ForMember(d => d.ReceiverUserName,
+                    opt => opt.MapFrom(s => s.Receiver != null ? s.Receiver.UserName : null))
+                .ForMember(d => d.ReceiverFriendCode,
+                    opt => opt.MapFrom(s => s.Receiver != null ? s.Receiver.FriendCode : null))
+                .ForMember(d => d.Status, opt => opt.MapFrom(s => (int)s.Status));
 
         }
     }

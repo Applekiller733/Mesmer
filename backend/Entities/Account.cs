@@ -10,6 +10,7 @@ namespace SongAppApi.Entities
         [Key]
         public Guid Id { get; set; } = NewId.NextSequentialGuid();
         public string UserName { get; set; }
+        public string FriendCode { get; set; }
         public string Email { get; set; }
         public string PasswordHash { get; set; }
         public bool AcceptTerms { get; set; }

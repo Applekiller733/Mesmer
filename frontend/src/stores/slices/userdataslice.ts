@@ -6,7 +6,7 @@ import { fetchUserProfile, fetchUsers, register, verify } from '../thunks/userth
 const getInitialState = (): { users: User[], currentuser: User, loadedProfile: UserProfile, status: string, errormsg: string } => {
     const users: User[] = [];
     const currentuser: User = { id: undefined, username: '', email: '', role: '', token: '' };
-    const loadedProfile: UserProfile = {username: '', role: '', createdAt: '', updatedAt: ''};
+    const loadedProfile: UserProfile = {username: '', role: '', createdAt: '', updatedAt: '', friendCode: "",};
     const status: string = 'idle';
     const errormsg: string = '';
 
@@ -73,6 +73,7 @@ export const userdataSlice = createSlice(
                         role: profile.role,
                         createdAt: profile.created,
                         updatedAt: profile.updated,
+                        friendCode: profile.friendCode, 
                     };
                 })
                 

@@ -12,12 +12,14 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router";
 import { apisearchusersbyusername } from "../../stores/api/userapi";
+import { formatFriendCode } from "../../utils/helpers/friendshiphelpers";
 
 const DEBOUNCE_MS = 300;
 
 interface UserResult {
     id: string;
     userName: string;
+    friendCode: string;
 }
 
 export default function UserSearch() {
@@ -28,16 +30,10 @@ export default function UserSearch() {
 
     const navigate = useNavigate();
 
-    // Holds the timer for the current debounced search. Ref rather than
-    // state because changing it shouldn't trigger a re-render.
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Sequence number to ignore out-of-order responses. Without this, a
-    // slow response for "ali" could land after a fast response for
-    // "alice" and overwrite the more-recent results.
     const requestSeq = useRef(0);
 
     useEffect(() => {
-        // Cancel any pending debounced search whenever the query changes.
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
             debounceRef.current = null;
@@ -55,7 +51,6 @@ export default function UserSearch() {
         debounceRef.current = setTimeout(async () => {
             try {
                 const data = await apisearchusersbyusername(query);
-                // Only apply if this is still the latest request.
                 if (mySeq === requestSeq.current) {
                     setResults(data ?? []);
                     setLoading(false);
@@ -82,7 +77,7 @@ export default function UserSearch() {
 
     return (
         <ClickAwayListener onClickAway={() => setOpen(false)}>
-            <Box sx={{ position: "relative", width: 260 }}>
+            <Box sx={{ position: "relative", width: 280 }}>
                 <Paper
                     elevation={0}
                     sx={{
@@ -96,7 +91,8 @@ export default function UserSearch() {
                 >
                     <SearchIcon sx={{ opacity: 0.7, mr: 1 }} />
                     <InputBase
-                        placeholder="Search users…"
+                        // Placeholder hints both search modes — name and code.
+                        placeholder="Search by name or code…"
                         value={query}
                         onFocus={() => setOpen(true)}
                         onChange={(e) => {
@@ -133,9 +129,20 @@ export default function UserSearch() {
                                     key={u.id}
                                     onClick={() => handlePick(u.id)}
                                 >
-                                    <Typography variant="body1">
-                                        {u.userName}
-                                    </Typography>
+                                    <Box>
+                                        <Typography variant="body1">
+                                            {u.userName}
+                                        </Typography>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                opacity: 0.6,
+                                                fontFamily: "monospace",
+                                            }}
+                                        >
+                                            {formatFriendCode(u.friendCode)}
+                                        </Typography>
+                                    </Box>
                                 </ListItemButton>
                             ))}
                         </List>

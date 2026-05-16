@@ -18,21 +18,22 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 
-import { useAppDispatch } from "../hooks/hooks";
+import { useAppDispatch } from "../../hooks/hooks";
 import {
     selectIncoming,
     selectIncomingCount,
     removeIncoming,
     addFriend,
-} from "../stores/slices/friendshipslice";
+} from "../../stores/slices/friendshipslice";
 import {
     fetchIncoming,
     fetchIncomingCount,
-} from "../stores/thunks/friendshipthunk";
+} from "../../stores/thunks/friendshipthunk";
 import {
     apiacceptrequest,
     apideclinerequest,
-} from "../stores/api/friendshipapi";
+} from "../../stores/api/friendshipapi";
+import { formatFriendCode } from "../../utils/helpers/friendshiphelpers";
 
 const POLL_INTERVAL_MS = 60_000;
 const PREVIEW_LIMIT = 4;
@@ -42,13 +43,10 @@ export function useFriendshipPolling() {
     const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
-        
         dispatch(fetchIncomingCount());
-
         tickerRef.current = setInterval(() => {
             dispatch(fetchIncomingCount());
         }, POLL_INTERVAL_MS);
-
         return () => {
             if (tickerRef.current) clearInterval(tickerRef.current);
         };
@@ -61,13 +59,13 @@ export default function FriendRequestsBadge() {
     const count = useSelector(selectIncomingCount);
     const incoming = useSelector(selectIncoming);
 
+    // console.log("[badge] STAGE_B rendered, incoming:", incoming);
+
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
     const open = Boolean(anchorEl);
 
     function handleOpen(e: React.MouseEvent<HTMLButtonElement>) {
         setAnchorEl(anchorEl ? null : e.currentTarget);
-        // Fetch the full list when the dropdown opens — we have a count
-        // but the dropdown needs the actual rows to show.
         dispatch(fetchIncoming());
     }
 
@@ -109,7 +107,7 @@ export default function FriendRequestsBadge() {
                 sx={{ zIndex: 1300 }}
             >
                 <ClickAwayListener onClickAway={handleClose}>
-                    <Paper sx={{ width: 320, maxHeight: 480, overflowY: "auto" }}>
+                    <Paper sx={{ width: 340, maxHeight: 480, overflowY: "auto" }}>
                         <Box sx={{ p: 1.5 }}>
                             <Typography variant="subtitle2">
                                 Friend Requests
@@ -129,34 +127,42 @@ export default function FriendRequestsBadge() {
                                     <ListItem key={r.id} divider>
                                         <ListItemText
                                             primary={
-                                                <Button
-                                                    variant="text"
-                                                    sx={{
-                                                        textTransform: "none",
-                                                        p: 0,
-                                                        minWidth: 0,
-                                                    }}
+                                                <Box
                                                     onClick={() => {
                                                         handleClose();
                                                         navigate(`/profile/${r.senderId}`);
                                                     }}
+                                                    sx={{
+                                                        cursor: "pointer",
+                                                        "&:hover .username": {
+                                                            textDecoration: "underline",
+                                                        },
+                                                    }}
                                                 >
-                                                    {r.senderId}
-                                                </Button>
+                                                    <Typography
+                                                        variant="body2"
+                                                        className="username"
+                                                    >
+                                                        {r.senderUserName || "(unknown)"}
+                                                    </Typography>
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{
+                                                            opacity: 0.6,
+                                                            fontFamily: "monospace",
+                                                        }}
+                                                    >
+                                                        {formatFriendCode(r.senderFriendCode)}
+                                                    </Typography>
+                                                </Box>
                                             }
                                             secondary="wants to be friends"
                                         />
                                         <ButtonGroup size="small">
-                                            <Button
-                                                color="success"
-                                                onClick={() => handleAccept(r)}
-                                            >
+                                            <Button color="success" onClick={() => handleAccept(r)}>
                                                 Accept
                                             </Button>
-                                            <Button
-                                                color="error"
-                                                onClick={() => handleDecline(r)}
-                                            >
+                                            <Button color="error" onClick={() => handleDecline(r)}>
                                                 Decline
                                             </Button>
                                         </ButtonGroup>

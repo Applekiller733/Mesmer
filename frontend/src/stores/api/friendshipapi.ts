@@ -5,17 +5,22 @@ const API_URL = `${import.meta.env.VITE_API_URL}/friendships`;
 export interface Friendship {
     id: string;
     senderId: string;
+    senderUserName: string;
+    senderFriendCode: string;
     receiverId: string;
-    status: number;          // FriendshipStatus enum value
+    receiverUserName: string;
+    receiverFriendCode: string;
+    status: number;
     createdAt: string;
     updatedAt: string | null;
 }
 
 export interface RelationshipStatus {
-    status: number | null;        // null when no row exists
+    status: number | null;
     isCurrentUserSender: boolean;
     isSelf: boolean;
 }
+
 
 export async function apigetrelationship(userId: string): Promise<RelationshipStatus> {
     const url = `${API_URL}/with/${userId}`;
@@ -96,7 +101,6 @@ export async function apiunblockuser(userId: string): Promise<void> {
         throw new Error(data.message || "Unblocking user failed");
     }
 }
-
 
 export async function apigetfriends(): Promise<Friendship[]> {
     const url = `${API_URL}/friends`;

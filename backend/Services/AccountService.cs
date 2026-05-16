@@ -162,6 +162,9 @@ namespace SongAppApi.Services
             // hash password
             account.PasswordHash = BCrypt.HashPassword(model.Password);
 
+            //generated friend code
+            account.FriendCode = generateUniqueFriendCode();
+
             // save account
             _context.Accounts.Add(account);
             _context.SaveChanges();
@@ -264,6 +267,9 @@ namespace SongAppApi.Services
             // hash password
             account.PasswordHash = BCrypt.HashPassword(model.Password);
 
+            //generated friend code
+            account.FriendCode = generateUniqueFriendCode();
+
             // save account
             _context.Accounts.Add(account);
             _context.SaveChanges();
@@ -330,20 +336,31 @@ namespace SongAppApi.Services
             _context.SaveChanges();
         }
 
+        //supports both searching by username and searching by friend code
         public IEnumerable<AccountResponse> SearchByUsername(string query, string? excludeId = null)
         {
-            // Empty query → empty result. Don't dump the entire user table.
             if (string.IsNullOrWhiteSpace(query))
                 return Enumerable.Empty<AccountResponse>();
 
             var trimmed = query.Trim();
 
-            var like = $"%{trimmed}%";
+            // Try parsing as a friend code first. TryNormalize handles "ABC-XYZ",
+            // "abcxyz", and other surface variations.
+            var normalizedCode = FriendCodeGenerator.TryNormalize(trimmed);
 
-            var q = _context.Accounts
-                .Where(a => EF.Functions.ILike(a.UserName, like));
+            IQueryable<Account> q;
+            if (normalizedCode != null)
+            {
+                // Friend codes are exact match. The unique index makes this fast.
+                q = _context.Accounts.Where(a => a.FriendCode == normalizedCode);
+            }
+            else
+            {
+                // Standard substring search.
+                var like = $"%{trimmed}%";
+                q = _context.Accounts.Where(a => EF.Functions.ILike(a.UserName, like));
+            }
 
-            // Exclude the searcher themselves, when the caller passes their id.
             if (!string.IsNullOrEmpty(excludeId) && Guid.TryParse(excludeId, out var excludeGuid))
             {
                 q = q.Where(a => a.Id != excludeGuid);
@@ -530,5 +547,18 @@ namespace SongAppApi.Services
                         {message}"
             );
         }
+
+        private string generateUniqueFriendCode()
+        {
+            const int MAX_ATTEMPTS = 10;
+            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
+            {
+                var code = FriendCodeGenerator.Generate();
+                if (!_context.Accounts.Any(a => a.FriendCode == code))
+                    return code;
+            }
+            throw new AppException("Could not generate a unique friend code. Try again.");
+        }
+
     }
 }
