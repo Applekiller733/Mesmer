@@ -1,16 +1,18 @@
 import { ThemeProvider } from "@emotion/react";
 import { darkTheme } from "../../../themes/themes";
-import { Box, Button, Paper, TextField } from "@mui/material";
+import { Box, Button, Paper, TextField, Typography } from "@mui/material";
 import SideList from "../../../reusablecomponents/library/sidelist/sidelist";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import type { CreatePlaylistRequest } from "../../../models/playlist";
+import { PlaylistVisibility } from "../../../models/playlist";
 import { useAppDispatch } from "../../../hooks/hooks";
 import { createPlaylist, fetchPlaylistsSavedByAccountId } from "../../../stores/thunks/playlistthunks";
 import { useState } from "react";
 import AddSongsGrid from "../../../reusablecomponents/library/create-playlist-datagrids/addsongsdatagrid";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../../../stores/slices/userdataslice";
+import VisibilitySelector from "../../../reusablecomponents/library/visibility/visibilityselector";
 
 export default function CreatePlaylist({handleMainPage} : {handleMainPage:any}) {
     const [status, setStatus] = useState('init');
@@ -25,13 +27,18 @@ export default function CreatePlaylist({handleMainPage} : {handleMainPage:any}) 
     const CreatePlaylistFormik = useFormik({
         initialValues: {
             name: '',
-            songIds: [],
+            songIds: [] as string[],
+            // Default to Private so a freshly-created playlist isn't
+            // accidentally broadcast on the user's profile. The user
+            // explicitly opts in to Unlisted/Public via the selector.
+            visibility: PlaylistVisibility.Private as PlaylistVisibility,
         },
         validationSchema: validationschema,
         onSubmit: (values) => {
             handleSubmit({
                 name: values.name,
                 songIds: values.songIds,
+                visibility: values.visibility,
             });
         }
     })
@@ -67,9 +74,30 @@ export default function CreatePlaylist({handleMainPage} : {handleMainPage:any}) 
                 >
                 </TextField>
 
-                <Button type="submit" color="success">
+                {/*
+                  Visibility selector. Set up-front rather than as a
+                  post-create PATCH so the user lands in their chosen
+                  state in one step. The selector handler integrates
+                  with Formik by calling setFieldValue directly — the
+                  custom component doesn't fire synthetic events the
+                  Formik handleChange could consume.
+                */}
+                <Box sx={{ mt: 2, mb: 1 }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        Visibility
+                    </Typography>
+                    <VisibilitySelector
+                        value={CreatePlaylistFormik.values.visibility}
+                        onChange={(next) =>
+                            CreatePlaylistFormik.setFieldValue("visibility", next)
+                        }
+                        disabled={status === "loading"}
+                    />
+                </Box>
+
+                <Button type="submit" color="success" disabled={status === "loading"}>
                     Save Playlist
-                </Button>   
+                </Button>
             </form>
         </Box>
     );

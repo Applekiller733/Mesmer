@@ -18,7 +18,9 @@ import ForYou from './pages/for-you/for-you';
 import AdminDashboard from './pages/admin/admin';
 import SongUpload from './pages/songupload/songupload';
 import Library from './pages/library/library';
-import FriendsPage from "./pages/friends/friends";
+import SocialsPage from "./pages/socials/socials";
+import ViewPlaylistPage from "./pages/playlist/viewplaylistpage";
+import ListenPlaylistPage from "./pages/playlist/listenplaylistpage";
 import {
     startRefreshTokenTimer,
     stopRefreshTokenTimer,
@@ -31,10 +33,6 @@ function App() {
     useEffect(() => {
         setAppDispatch(dispatch);
 
-        // hydrate the user slice from localStorage and start
-        // the refresh timer, if the JWT is already expired, the timer
-        // attempts an immediate refresh; if THAT fails, forceLogout runs
-        // either way we cannot land in the "stuck with expired token" state
         try {
             const raw = localStorage.getItem('currentuser');
             if (raw) {
@@ -48,7 +46,6 @@ function App() {
             localStorage.removeItem('currentuser');
         }
 
-        // cleanup on unmount 
         return () => stopRefreshTokenTimer();
     }, [dispatch]);
 
@@ -69,7 +66,9 @@ function App() {
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/song-upload" element={<SongUpload />} />
                     <Route path="/library" element={<Library />} />
-                    <Route path="/friends" element={<FriendsPage />} />
+                    <Route path="/socials" element={<SocialsPage />} />
+                    <Route path="/playlist/:id" element={<ViewPlaylistPage />} />
+                    <Route path="/playlist/:id/listen" element={<ListenPlaylistPage />} />
                 </Routes>
             </BrowserRouter>
         </ThemeProvider>

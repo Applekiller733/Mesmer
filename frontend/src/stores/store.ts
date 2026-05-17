@@ -6,6 +6,7 @@ import playlistdataReducer from "./slices/playlistdataslice";
 import playbackReducer from "./slices/playbackslice";
 import recommendationModeReducer from "./slices/recommendationmodeslice";
 import friendshipReducer from "./slices/friendshipslice";
+import playlistinvitationReducer from "./slices/playlistinvitationslice";
 
 const store = configureStore({
     reducer: {
@@ -15,6 +16,7 @@ const store = configureStore({
         playback: playbackReducer,
         recommendationmode: recommendationModeReducer,
         friendship: friendshipReducer,
+        playlistinvitation: playlistinvitationReducer,
     },
 }
 );

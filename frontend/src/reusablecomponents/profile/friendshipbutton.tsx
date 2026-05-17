@@ -13,12 +13,14 @@ import {
     apiremovefriend,
     apisendfriendrequest,
     apiunblockuser,
+    FriendshipStatus,
     type RelationshipStatus,
 } from "../../stores/api/friendshipapi";
 
-const STATUS_PENDING = 0;
-const STATUS_ACCEPTED = 1;
-const STATUS_BLOCKED = 2;
+// Removed: previous STATUS_PENDING / STATUS_ACCEPTED / STATUS_BLOCKED
+// numeric constants. Compare against FriendshipStatus.* now — the
+// wire format moved to strings, and the imported const-object gives
+// the same ergonomics as the old local numbers.
 
 interface FriendshipButtonProps {
     targetUserId: string;
@@ -26,7 +28,7 @@ interface FriendshipButtonProps {
 
 export default function FriendshipButton({ targetUserId }: FriendshipButtonProps) {
     const [relationship, setRelationship] = useState<RelationshipStatus | null>(null);
-    
+
     const [working, setWorking] = useState(false);
 
     useEffect(() => {
@@ -58,7 +60,7 @@ export default function FriendshipButton({ targetUserId }: FriendshipButtonProps
     }
 
     async function handleAccept() {
-        
+
         setWorking(true);
         try {
             const incoming = await (await import("../../stores/api/friendshipapi"))
@@ -148,7 +150,7 @@ export default function FriendshipButton({ targetUserId }: FriendshipButtonProps
         );
     }
 
-    if (relationship.status === STATUS_PENDING) {
+    if (relationship.status === FriendshipStatus.Pending) {
         if (relationship.isCurrentUserSender) {
             return (
                 <Button
@@ -182,7 +184,7 @@ export default function FriendshipButton({ targetUserId }: FriendshipButtonProps
         );
     }
 
-    if (relationship.status === STATUS_ACCEPTED) {
+    if (relationship.status === FriendshipStatus.Accepted) {
         return (
             <Button
                 variant="outlined"
@@ -196,7 +198,7 @@ export default function FriendshipButton({ targetUserId }: FriendshipButtonProps
         );
     }
 
-    if (relationship.status === STATUS_BLOCKED) {
+    if (relationship.status === FriendshipStatus.Blocked) {
         return (
             <Button
                 variant="outlined"

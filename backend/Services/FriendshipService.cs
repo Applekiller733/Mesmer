@@ -81,7 +81,7 @@ namespace SongAppApi.Services
                         {
                             SenderId = senderId,
                             ReceiverId = receiverId,
-                            Status = (int)FriendshipStatus.Pending,
+                            Status = FriendshipStatus.Pending,
                             CreatedAt = DateTime.UtcNow,
                         };
                 }
@@ -253,7 +253,7 @@ namespace SongAppApi.Services
 
             return new RelationshipStatusResponse
             {
-                Status = (int)row.Status,
+                Status = row.Status,
                 IsCurrentUserSender = row.SenderId == currentGuid,
                 IsSelf = false,
             };

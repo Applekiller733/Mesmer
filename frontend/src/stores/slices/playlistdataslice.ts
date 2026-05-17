@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { Playlist } from '../../models/playlist';
+import { PlaylistVisibility } from '../../models/playlist';
 import type { RootState } from '../store';
 import { fetchLoadedPlaylist, fetchPlaylistById, fetchPlaylists, fetchPlaylistsCreatedByAccountId, fetchPlaylistsSavedByAccountId } from '../thunks/playlistthunks';
 
@@ -8,7 +9,12 @@ const getInitialState = (): { playlists: Playlist[], savedplaylists: Playlist[],
     return {
         playlists: [], // should be 'generally loaded' playlists, like on a discovery page or smth
         savedplaylists: [], //should be personally saved playlists
-        loadedplaylist: {id: '', name: '', createdAt: '', updatedAt: '', songs:[]},
+        // Visibility added to the initial loadedplaylist now that
+        // Playlist requires it. Defaulting to Private here is a safe
+        // sentinel — the value is replaced as soon as a real playlist
+        // is fetched, and Private would never accidentally widen
+        // access if a stray render somehow read this default.
+        loadedplaylist: {id: '', name: '', createdAt: '', updatedAt: '', visibility: PlaylistVisibility.Private, songs:[]},
         status: 'idle',
         errormsg: '',
     };

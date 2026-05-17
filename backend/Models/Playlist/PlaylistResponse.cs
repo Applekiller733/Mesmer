@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using SongAppApi.Models.Accounts;
 using SongAppApi.Models.Songs;
+using SongAppApi.Helpers.Enumerators;
 
 namespace SongAppApi.Models.Playlist
 {
@@ -11,7 +12,7 @@ namespace SongAppApi.Models.Playlist
         public string Name { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public bool IsPublic { get; set; }
+        public PlaylistVisibility Visibility { get; set; }
         public AccountResponse CreatedBy { get; set; }
         //public int CreatedById { get; set; }
         public List<SongResponse> Songs { get; set; }

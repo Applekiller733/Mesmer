@@ -13,20 +13,22 @@ import {
     stopRefreshTokenTimer,
 } from "../utils/helpers/userhelpers";
 import UserSearch from "./navbar/usersearch";
-import FriendRequestsBadge, {
-    useFriendshipPolling,
-} from "./navbar/friendrequestsbadge";
+import NotificationsBadge, {
+    useNotificationsPolling,
+} from "./navbar/notificationsbadge";
 
 
 function LoggedInNavbarExtras() {
-    useFriendshipPolling();
+    // Polls friend-request and playlist-invitation counts together.
+    // See notificationsbadge.tsx for the cadence and rationale.
+    useNotificationsPolling();
     return (
         <>
             <Box sx={{ ml: 2 }}>
                 <UserSearch />
             </Box>
             <Box sx={{ ml: 1 }}>
-                <FriendRequestsBadge />
+                <NotificationsBadge />
             </Box>
         </>
     );
@@ -76,8 +78,11 @@ export default function Navbar() {
                             </Button>
                         )}
                         {loggedIn && (
-                            <Button color="inherit" href="/friends">
-                                Friends
+                            // Renamed from "Friends" to "Socials" to match
+                            // the two-tab layout (Friends + Playlists)
+                            // introduced in this step.
+                            <Button color="inherit" href="/socials">
+                                Socials
                             </Button>
                         )}
                         {isAdmin && (

@@ -75,6 +75,7 @@ var builder = WebApplication.CreateBuilder(args);
     services.AddScoped<ISongService, SongService>();
     services.AddScoped<IPlaylistService, PlaylistService>();
     services.AddScoped<IFriendshipService, FriendshipService>();
+    services.AddScoped<IPlaylistInvitationService, PlaylistInvitationService>();
 }
 
 var app = builder.Build();

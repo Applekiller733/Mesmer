@@ -1,5 +1,5 @@
 import authHeader from "./apihelper";
-import type {Playlist, CreatePlaylistRequest, UpdatePlaylistRequest, DeletePlaylistRequest} from "../../models/playlist";
+import type {Playlist, CreatePlaylistRequest, UpdatePlaylistRequest, DeletePlaylistRequest, PlaylistVisibility} from "../../models/playlist";
 
 const API_URL = `${import.meta.env.VITE_API_URL}/playlists`;
 
@@ -98,19 +98,6 @@ export async function apifetchplaylistssavedbyaccount(accountid:string){
     }
 
     return data;
-    // .then(response => response.json())
-    // .then (response => {
-    //     return response.map((p:any) => {
-    //         const playlist:Playlist = {
-    //             id: p.id,
-    //             name: p.name,
-    //             createdAt: p.createdAt,
-    //             updatedAt: p.updatedAt,
-    //             songs: p.songs,
-    //         }
-    //         return playlist;
-    //     })
-    // })
 }
 
 export async function apicreateplaylist(request: CreatePlaylistRequest) {
@@ -159,4 +146,70 @@ export async function apideleteplaylist(request: DeletePlaylistRequest){
     }
 
     return data;
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 endpoints: save, unsave, change-visibility
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a playlist to the current user's library. The backend validates
+ * visibility (Public → anyone; Unlisted → only users with a pending
+ * invitation; Private → 404), so this can be called optimistically;
+ * surface the error message if the response isn't OK.
+ *
+ * Returns the saved Playlist so the caller can immediately render or
+ * navigate to it without a follow-up fetch.
+ */
+export async function apisaveplaylist(playlistId: string): Promise<Playlist> {
+    const url = `${API_URL}/${playlistId}/save`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { ...authHeader(url) },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.message || "Saving playlist failed");
+    }
+    return data as Playlist;
+}
+
+/**
+ * Remove a playlist from the current user's library. The backend
+ * rejects owners trying to unsave their own playlists — surface that
+ * error so the UI can prompt "delete instead" rather than silently
+ * failing.
+ */
+export async function apiunsaveplaylist(playlistId: string): Promise<void> {
+    const url = `${API_URL}/${playlistId}/save`;
+    const response = await fetch(url, {
+        method: "DELETE",
+        headers: { ...authHeader(url) },
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Unsaving playlist failed");
+    }
+}
+
+/**
+ * Owner-only: change a playlist's visibility. Backend side effect:
+ * transitioning to Private auto-cancels pending invitations for this
+ * playlist. The returned Playlist reflects the new state.
+ */
+export async function apiupdateplaylistvisibility(
+    playlistId: string,
+    visibility: PlaylistVisibility,
+): Promise<Playlist> {
+    const url = `${API_URL}/${playlistId}/visibility`;
+    const response = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader(url) },
+        body: JSON.stringify({ visibility }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.message || "Updating playlist visibility failed");
+    }
+    return data as Playlist;
 }

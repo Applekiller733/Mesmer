@@ -9,7 +9,8 @@
         public DbSet<File> Files { get; set; }
         public DbSet<Song> Songs { get; set; }
         public DbSet<Playlist> Playlists { get; set; }
-        public DbSet<Friendship> Friendships { get; set; }
+        public DbSet<Friendship> Friendships { get; set;}
+        public DbSet<PlaylistInvitation> PlaylistInvitations { get; set; }
 
         private readonly IConfiguration Configuration;
 
@@ -135,6 +136,33 @@
                 // ReceiverId because that's the typical use ("MY incoming pending").
                 entity.HasIndex(f => new { f.ReceiverId, f.Status });
             });
+
+            modelBuilder.Entity<PlaylistInvitation>(entity =>
+            {
+                entity.Property(p => p.Id).ValueGeneratedNever();
+                entity.HasOne(p => p.Playlist)
+                    .WithMany()
+                    .HasForeignKey(p => p.PlaylistId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(p => p.Sender)
+                    .WithMany()
+                    .HasForeignKey(p => p.SenderId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(p => p.Receiver)
+                    .WithMany()
+                    .HasForeignKey(p => p.ReceiverId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => new { p.PlaylistId, p.ReceiverId })
+                    .IsUnique();
+
+                entity.HasIndex(p => new { p.ReceiverId, p.CreatedAt });
+
+                entity.HasIndex(p => new { p.SenderId, p.CreatedAt });
+            });
+
 
         }
     }

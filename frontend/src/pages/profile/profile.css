@@ -1,22 +1,44 @@
-
-.profile-background{
-    min-height: 100vh;
-    display: flex;           
-  flex-direction: column;   
-  align-items: center;      
-  justify-content: center;
+.profile-background {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   background-color: var(--mui-palette-background-default, #121212);
 }
 
+/*
+* Loosened the previous 3x3 grid layout. The header pieces (SmallProfile,
+* FriendCodeChip, buttons) didn't actually fill nine cells in a meaningful
+* way; stacking them vertically inside a centered paper reads better and
+* makes room for the new playlists section.
+*/
 .profile-paper {
-    flex: 1;      
-    width: 80%;       
-    height: 80%;      
-    display: grid;    
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 1rem;
-    justify-content: center;
-    align-items: center;
-    margin: 2rem auto;
-  }
+  width: 80%;
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/*
+* Header block holds the existing identity bits — picture, friend code,
+* friendship button. No extra styling beyond spacing-from-below; the
+* inner components own their own padding.
+*/
+.profile-header-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/*
+* Playlists block sits below the header with a slim top border so the
+* sections read as distinct. Full width of the paper.
+*/
+.profile-playlists-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.5rem;
+}

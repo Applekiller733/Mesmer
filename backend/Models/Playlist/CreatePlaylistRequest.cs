@@ -1,4 +1,5 @@
 ﻿using SongAppApi.Entities;
+using SongAppApi.Helpers.Enumerators;
 using SongAppApi.Models.Songs;
 
 namespace SongAppApi.Models.Playlist
@@ -7,5 +8,6 @@ namespace SongAppApi.Models.Playlist
     {
         public string Name { get; set; }
         public List<string> SongIds { get; set; }
+        public PlaylistVisibility? Visibility { get; set; }
     }
 }

@@ -2,6 +2,14 @@ import authHeader from "./apihelper";
 
 const API_URL = `${import.meta.env.VITE_API_URL}/friendships`;
 
+export const FriendshipStatus = {
+    Pending: "Pending",
+    Accepted: "Accepted",
+    Blocked: "Blocked",
+} as const;
+export type FriendshipStatus =
+    typeof FriendshipStatus[keyof typeof FriendshipStatus];
+
 export interface Friendship {
     id: string;
     senderId: string;
@@ -10,13 +18,13 @@ export interface Friendship {
     receiverId: string;
     receiverUserName: string;
     receiverFriendCode: string;
-    status: number;
+    status: FriendshipStatus;
     createdAt: string;
     updatedAt: string | null;
 }
 
 export interface RelationshipStatus {
-    status: number | null;
+    status: FriendshipStatus | null;
     isCurrentUserSender: boolean;
     isSelf: boolean;
 }

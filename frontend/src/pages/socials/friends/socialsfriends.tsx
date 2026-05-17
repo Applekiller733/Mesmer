@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
     Box,
-    Paper,
     Tabs,
     Tab,
     Badge,
@@ -13,14 +12,11 @@ import {
     ButtonGroup,
     CircularProgress,
 } from "@mui/material";
-import { ThemeProvider } from "@emotion/react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 
-import { darkTheme } from "../../themes/themes";
-import Navbar from "../../reusablecomponents/navbar";
-import { useAppDispatch } from "../../hooks/hooks";
-import { selectCurrentUser } from "../../stores/slices/userdataslice";
+import { useAppDispatch } from "../../../hooks/hooks";
+import { selectCurrentUser } from "../../../stores/slices/userdataslice";
 import {
     selectFriends,
     selectIncoming,
@@ -33,31 +29,35 @@ import {
     removeFriend,
     removeBlocked,
     addFriend,
-} from "../../stores/slices/friendshipslice";
+} from "../../../stores/slices/friendshipslice";
 import {
     fetchFriends,
     fetchIncoming,
     fetchOutgoing,
     fetchBlocked,
-} from "../../stores/thunks/friendshipthunk";
+} from "../../../stores/thunks/friendshipthunk";
 import {
     apiacceptrequest,
     apideclinerequest,
     apiremovefriend,
     apiunblockuser,
     type Friendship,
-} from "../../stores/api/friendshipapi";
+} from "../../../stores/api/friendshipapi";
 import {
     otherUserId,
     otherUserName,
     otherFriendCode,
     formatFriendCode,
-} from "../../utils/helpers/friendshiphelpers";
-import "./friends.css";
+} from "../../../utils/helpers/friendshiphelpers";
 
-type TabKey = "friends" | "incoming" | "outgoing" | "blocked";
+type FriendTabKey = "friends" | "incoming" | "outgoing" | "blocked";
 
-export default function FriendsPage() {
+/**
+ * The friend-system tabs of the Socials page. Lifted out of the
+ * previous standalone Friends page with no behavioural changes —
+ * just relocated under the Socials top-level tab structure.
+ */
+export default function SocialsFriends() {
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
     const currentUser = useSelector(selectCurrentUser);
@@ -69,8 +69,11 @@ export default function FriendsPage() {
     const incomingCount = useSelector(selectIncomingCount);
     const loading = useSelector(selectFriendshipLoading);
 
-    const [tab, setTab] = useState<TabKey>("friends");
+    const [tab, setTab] = useState<FriendTabKey>("friends");
 
+    // Fetch only the active tab's data — lazy-load saves a few
+    // unnecessary requests when the user lands directly on the
+    // friends tab and never visits Outgoing or Blocked.
     useEffect(() => {
         if (!currentUser?.id) return;
         if (tab === "friends") dispatch(fetchFriends());
@@ -80,107 +83,98 @@ export default function FriendsPage() {
     }, [tab, currentUser?.id, dispatch]);
 
     return (
-        <ThemeProvider theme={darkTheme}>
-            <Box className="friends-background">
-                <Navbar />
-                <Paper className="friends-paper">
-                    <Typography variant="h4" sx={{ mb: 2 }}>
-                        Friends
-                    </Typography>
+        <Box>
+            <Tabs
+                value={tab}
+                onChange={(_, v) => setTab(v)}
+                textColor="inherit"
+            >
+                <Tab value="friends" label="Friends" />
+                <Tab
+                    value="incoming"
+                    label={
+                        <Badge
+                            color="error"
+                            badgeContent={incomingCount}
+                            invisible={incomingCount === 0}
+                        >
+                            <span style={{ paddingRight: 8 }}>Incoming</span>
+                        </Badge>
+                    }
+                />
+                <Tab value="outgoing" label="Outgoing" />
+                <Tab value="blocked" label="Blocked" />
+            </Tabs>
 
-                    <Tabs
-                        value={tab}
-                        onChange={(_, v) => setTab(v)}
-                        textColor="inherit"
-                    >
-                        <Tab value="friends" label="Friends" />
-                        <Tab
-                            value="incoming"
-                            label={
-                                <Badge
-                                    color="error"
-                                    badgeContent={incomingCount}
-                                    invisible={incomingCount === 0}
-                                >
-                                    <span style={{ paddingRight: 8 }}>Incoming</span>
-                                </Badge>
-                            }
-                        />
-                        <Tab value="outgoing" label="Outgoing" />
-                        <Tab value="blocked" label="Blocked" />
-                    </Tabs>
+            <Box sx={{ mt: 2 }}>
+                {tab === "friends" && (
+                    <FriendsTab
+                        rows={friends}
+                        loading={loading.friends}
+                        currentUserId={currentUser.id ?? ""}
+                        onOpen={(id) => navigate(`/profile/${id}`)}
+                        onRemove={async (id) => {
+                            await apiremovefriend(id);
+                            dispatch(removeFriend(id));
+                        }}
+                    />
+                )}
 
-                    <Box sx={{ mt: 2 }}>
-                        {tab === "friends" && (
-                            <FriendsTab
-                                rows={friends}
-                                loading={loading.friends}
-                                currentUserId={currentUser.id ?? ""}
-                                onOpen={(id) => navigate(`/profile/${id}`)}
-                                onRemove={async (id) => {
-                                    await apiremovefriend(id);
-                                    dispatch(removeFriend(id));
-                                }}
-                            />
-                        )}
+                {tab === "incoming" && (
+                    <IncomingTab
+                        rows={incoming}
+                        loading={loading.incoming}
+                        currentUserId={currentUser.id ?? ""}
+                        onOpen={(id) => navigate(`/profile/${id}`)}
+                        onAccept={async (row) => {
+                            const updated = await apiacceptrequest(row.id);
+                            dispatch(removeIncoming(row.id));
+                            dispatch(addFriend(updated));
+                        }}
+                        onDecline={async (row) => {
+                            await apideclinerequest(row.id);
+                            dispatch(removeIncoming(row.id));
+                        }}
+                    />
+                )}
 
-                        {tab === "incoming" && (
-                            <IncomingTab
-                                rows={incoming}
-                                loading={loading.incoming}
-                                currentUserId={currentUser.id ?? ""}
-                                onOpen={(id) => navigate(`/profile/${id}`)}
-                                onAccept={async (row) => {
-                                    const updated = await apiacceptrequest(row.id);
-                                    dispatch(removeIncoming(row.id));
-                                    dispatch(addFriend(updated));
-                                }}
-                                onDecline={async (row) => {
-                                    await apideclinerequest(row.id);
-                                    dispatch(removeIncoming(row.id));
-                                }}
-                            />
-                        )}
+                {tab === "outgoing" && (
+                    <OutgoingTab
+                        rows={outgoing}
+                        loading={loading.outgoing}
+                        currentUserId={currentUser.id ?? ""}
+                        onOpen={(id) => navigate(`/profile/${id}`)}
+                        onCancel={async (row) => {
+                            // Cancelling a pending outgoing request is
+                            // modelled as "remove this friendship row"
+                            // on the backend. Resolve the "other user"
+                            // first so we hit the right endpoint.
+                            const other = otherUserId(row, currentUser.id ?? "");
+                            await apiremovefriend(other);
+                            dispatch(removeOutgoing(row.id));
+                        }}
+                    />
+                )}
 
-                        {tab === "outgoing" && (
-                            <OutgoingTab
-                                rows={outgoing}
-                                loading={loading.outgoing}
-                                currentUserId={currentUser.id ?? ""}
-                                onOpen={(id) => navigate(`/profile/${id}`)}
-                                onCancel={async (row) => {
-                                    const other = otherUserId(row, currentUser.id ?? "");
-                                    await apiremovefriend(other);
-                                    dispatch(removeOutgoing(row.id));
-                                }}
-                            />
-                        )}
-
-                        {tab === "blocked" && (
-                            <BlockedTab
-                                rows={blocked}
-                                loading={loading.blocked}
-                                currentUserId={currentUser.id ?? ""}
-                                onOpen={(id) => navigate(`/profile/${id}`)}
-                                onUnblock={async (row) => {
-                                    const other = otherUserId(row, currentUser.id ?? "");
-                                    await apiunblockuser(other);
-                                    dispatch(removeBlocked(other));
-                                }}
-                            />
-                        )}
-                    </Box>
-                </Paper>
+                {tab === "blocked" && (
+                    <BlockedTab
+                        rows={blocked}
+                        loading={loading.blocked}
+                        currentUserId={currentUser.id ?? ""}
+                        onOpen={(id) => navigate(`/profile/${id}`)}
+                        onUnblock={async (row) => {
+                            const other = otherUserId(row, currentUser.id ?? "");
+                            await apiunblockuser(other);
+                            dispatch(removeBlocked(other));
+                        }}
+                    />
+                )}
             </Box>
-        </ThemeProvider>
+        </Box>
     );
 }
 
-// tab content components
-//
-// Each tab renders the row's username + friend code rather than the
-// raw UUID. The friend code is shown smaller and dimmer — informational
-// for disambiguation, not the primary read.
+// ---------------- Tab components ----------------
 
 interface BaseTabProps {
     loading: boolean;
@@ -188,11 +182,6 @@ interface BaseTabProps {
     onOpen: (userId: string) => void;
 }
 
-/**
- * Reusable name + code stack. Used by every tab so the formatting stays
- * consistent — username on top in normal weight, friend code below in a
- * smaller dim font.
- */
 function UserLabel({
     name,
     code,

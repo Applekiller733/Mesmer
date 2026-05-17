@@ -30,11 +30,24 @@ namespace SongAppApi.Services
         public async Task<IEnumerable<string>> GetRecommendationsForPlaylistAsync(
             string playlistId, int topK, CancellationToken ct = default)
         {
-            var playlist = _playlistService.Get(playlistId);
+            // GetInternal bypasses the user-facing visibility gate. The
+            // assumption: whoever invoked the recommender already proved
+            // they're entitled to use this playlist as a seed by going
+            // through a normal user-facing path. Bypassing here lets the
+            // recommender treat the playlist as a pure data source
+            // without re-doing the auth check (which it doesn't have
+            // current-user context for anyway).
+            //
+            // If you ever wire the recommender to an endpoint that takes
+            // a playlist id directly from the user without first
+            // resolving the playlist via the normal Get path, *that*
+            // endpoint must perform its own visibility check before
+            // calling in here.
+            var playlist = _playlistService.GetInternal(playlistId);
             if (playlist == null)
                 throw new KeyNotFoundException($"Playlist {playlistId} not found.");
 
-            
+
             var requestBody = new
             {
                 Id = playlist.Id.ToString(),
