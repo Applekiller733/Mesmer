@@ -53,18 +53,13 @@ import { selectCurrentUser } from "../../stores/slices/userdataslice";
 import VisibilityBadge from "../library/visibility/visibilitybadge";
 
 /**
- * Combined notifications popper. Replaces the previous
- * friendrequestsbadge.tsx — one bell icon, one popper, two sections
- * inside: Friend Requests + Playlist Shares.
+ * Combined notifications popper. One bell icon, one popper, two
+ * sections: Friend Requests + Playlist Shares. The badge count on the
+ * bell is the SUM of both inboxes so a single number reflects "stuff
+ * waiting for you".
  *
- * The badge count on the bell is the SUM of pending friend requests
- * and pending playlist invitations, so a single number reflects "stuff
- * waiting for you". Each section inside polls its own count so the two
- * pieces of state stay independent.
- *
- * Polling: 60s for both, kicked off by useNotificationsPolling() which
- * is mounted from navbar.tsx exactly once per logged-in session. Same
- * cadence the friend polling used previously.
+ * Polling: 60s for both, driven by useNotificationsPolling() mounted
+ * once per logged-in session from navbar.tsx.
  */
 
 const POLL_INTERVAL_MS = 60_000;
@@ -76,7 +71,7 @@ export function useNotificationsPolling() {
 
     useEffect(() => {
         // Fire both immediately so the badge reflects state on mount
-        // rather than waiting 60s. Then a single interval drives both.
+        // rather than waiting 60s.
         dispatch(fetchIncomingCount());
         dispatch(fetchIncomingInvitationsCount());
         tickerRef.current = setInterval(() => {
@@ -89,8 +84,6 @@ export function useNotificationsPolling() {
     }, [dispatch]);
 }
 
-// Re-export under the old name for any caller that might still
-// import useFriendshipPolling. Deprecated; remove after migration.
 export const useFriendshipPolling = useNotificationsPolling;
 
 export default function NotificationsBadge() {
@@ -104,7 +97,6 @@ export default function NotificationsBadge() {
     const invitationCount = useSelector(selectIncomingInvitationsCount);
     const incomingInvitations = useSelector(selectIncomingInvitations);
 
-    // Combined count for the bell badge.
     const totalCount = friendCount + invitationCount;
 
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
@@ -112,8 +104,6 @@ export default function NotificationsBadge() {
 
     function handleOpen(e: React.MouseEvent<HTMLButtonElement>) {
         setAnchorEl(anchorEl ? null : e.currentTarget);
-        // Refresh both sections when the popper opens so the user sees
-        // current data even if a poll cycle hasn't fired recently.
         dispatch(fetchIncoming());
         dispatch(fetchIncomingInvitations());
     }
@@ -122,7 +112,7 @@ export default function NotificationsBadge() {
         setAnchorEl(null);
     }
 
-    // ---------------- Friend handlers ----------------
+    // Friend handlers
 
     async function handleAcceptFriend(row: any) {
         try {
@@ -143,18 +133,11 @@ export default function NotificationsBadge() {
         }
     }
 
-    // ---------------- Invitation handlers ----------------
+    // Invitation handlers 
 
     async function handleAcceptInvitation(row: any) {
         try {
             await apiacceptinvitation(row.id);
-            // Three things happen on a successful accept:
-            //  1. The invitation row is gone — drop from local state.
-            //  2. The playlist is now in the user's library — refresh
-            //     the saved list so it shows up in the sidelist /
-            //     library page without a manual nav.
-            //  3. The badge count needs no extra action; removeIncoming
-            //     keeps it in sync via the slice's setIncomingCount.
             dispatch(removeIncomingInvitation(row.id));
             if (currentUser.id) {
                 dispatch(fetchPlaylistsSavedByAccountId(currentUser.id));
@@ -193,7 +176,7 @@ export default function NotificationsBadge() {
             >
                 <ClickAwayListener onClickAway={handleClose}>
                     <Paper sx={{ width: 360, maxHeight: 540, overflowY: "auto" }}>
-                        {/* ----------- Friend Requests section ----------- */}
+                        {/* Friend Requests section  */}
                         <Box sx={{ p: 1.5 }}>
                             <Typography variant="subtitle2">
                                 Friend Requests
@@ -251,7 +234,7 @@ export default function NotificationsBadge() {
                             </List>
                         )}
 
-                        {/* ----------- Playlist Shares section ----------- */}
+                        {/* Playlist Shares section*/}
                         <Box sx={{ p: 1.5, mt: 1 }}>
                             <Typography variant="subtitle2">
                                 Playlist Shares
@@ -273,11 +256,8 @@ export default function NotificationsBadge() {
                                             primary={
                                                 <Box
                                                     onClick={() => {
-                                                        // Clicking the row body navigates
-                                                        // to the sender's profile — mirrors
-                                                        // the friend-request behaviour.
                                                         handleClose();
-                                                        navigate(`/profile/${r.senderId}`);
+                                                        navigate(`/playlist/${r.playlistId}`);
                                                     }}
                                                     sx={{
                                                         cursor: "pointer",
@@ -332,7 +312,7 @@ export default function NotificationsBadge() {
                             </List>
                         )}
 
-                        {/* ----------- Footer ----------- */}
+                        {/* Footer */}
                         <Divider />
                         <Box sx={{ p: 1, textAlign: "center" }}>
                             <Button

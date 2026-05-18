@@ -170,6 +170,10 @@ const AudioWidget = (props: AudioWidgetProps) => {
 
                     <div className="audiowidget-buttons-row">
                         <div className="audiowidget-controls-left">
+                            <VolumeControl/>
+                        </div>
+
+                        <div className="audiowidget-controls-right">
                             <IconButton
                                 className="audiowidget-control-button audiowidget-control-button-circle"
                                 color="primary"
@@ -184,10 +188,6 @@ const AudioWidget = (props: AudioWidgetProps) => {
                                     <PlayCircleFilled style={{ fontSize: "50px" }} />
                                 )}
                             </IconButton>
-                        </div>
-
-                        <div className="audiowidget-controls-right">
-                            <VolumeControl />
                         </div>
                     </div>
                 </div>

@@ -1,7 +1,8 @@
 import { ThemeProvider } from "@emotion/react";
-import { Backdrop, Box, CircularProgress } from "@mui/material";
+import { Backdrop, Box, CircularProgress, IconButton, Tooltip } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { darkTheme } from "../../themes/themes";
 import Navbar from "../../reusablecomponents/navbar";
@@ -9,16 +10,9 @@ import ListenPlaylist from "../library/listen-playlist/listen-playlist";
 import { useAppDispatch } from "../../hooks/hooks";
 import { fetchLoadedPlaylist } from "../../stores/thunks/playlistthunks";
 
-/**
- * Standalone /playlist/:id/listen route. Mirrors ViewPlaylistPage but
- * mounts the carousel-based listen experience instead. Loads the
- * playlist into the slice on mount so ListenPlaylist (which reads
- * from selectLoadedPlaylist) has data; if the fetch 404s — playlist
- * gone or visibility forbids — show a "not available" message rather
- * than an empty carousel.
- */
 export default function ListenPlaylistPage() {
     const params = useParams();
+    const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const playlistId = params.id ?? "";
     const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading");
@@ -41,6 +35,27 @@ export default function ListenPlaylistPage() {
         <ThemeProvider theme={darkTheme}>
             <Box sx={{ minHeight: "100vh", backgroundColor: "#121212" }}>
                 <Navbar />
+
+                {/*
+                  Back-to-view affordance. Floats top-left under the
+                  navbar so the carousel layout below stays untouched.
+                  Uses navigate rather than href so the loaded-playlist
+                  slice stays warm — bouncing between view and listen
+                  doesn't trigger a full page reload.
+                */}
+                {status === "ready" && playlistId && (
+                    <Box sx={{ px: 2, pt: 1 }}>
+                        <Tooltip title="Back to playlist details" arrow>
+                            <IconButton
+                                onClick={() => navigate(`/playlist/${playlistId}`)}
+                                color="white"
+                            >
+                                <ArrowBackIcon className="back-arrow"/>
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                )}
+
                 {status === "missing" && (
                     <Box sx={{ textAlign: "center", py: 4, opacity: 0.7 }}>
                         This playlist doesn't exist or isn't available to you.

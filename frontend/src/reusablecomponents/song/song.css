@@ -152,7 +152,11 @@
     align-items: center;
     gap: 0.5rem;
     width: 100%;
+    background-color: rgba(0, 0, 0, 0.45);
+    padding: 4px 10px;
+    border-radius: 999px;
 }
+
  
 .audiowidget-progress-slider {
     flex: 1;
