@@ -60,7 +60,7 @@ export default function Navbar() {
             <AppBar position="static" className="navbar">
                 <Toolbar className="navbar-toolbar">
                     <Typography variant="h6" className="navbar-title">
-                        SongApp
+                        Mesmer
                     </Typography>
 
                     <Box className="navbar-links">
