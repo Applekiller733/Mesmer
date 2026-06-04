@@ -265,6 +265,9 @@ namespace SongAppApi.Migrations
                     b.Property<int>("EnrichmentStatus")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Genre")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ImageId")
                         .HasColumnType("uuid");
 
@@ -279,7 +282,7 @@ namespace SongAppApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<Vector>("PcaFeatures")
-                        .HasColumnType("vector(15)");
+                        .HasColumnType("vector(40)");
 
                     b.PrimitiveCollection<float[]>("RawFeatures")
                         .HasColumnType("real[]");
