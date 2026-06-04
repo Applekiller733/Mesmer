@@ -72,7 +72,7 @@ export default function RecommendationModeSelector() {
             {status === "loading" && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <CircularProgress size={18} />
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                    <Typography color="white" variant="body2" sx={{ opacity: 0.7 }}>
                         Loading recommendations…
                     </Typography>
                 </Box>

@@ -11,57 +11,9 @@ namespace SongAppApi.Services
 {
     public interface IPlaylistService
     {
-        /// <summary>
-        /// Read a playlist with visibility enforcement.
-        ///
-        /// Behaviour by visibility:
-        ///   - Public: anyone can read.
-        ///   - Unlisted: only the owner, users who have already saved it,
-        ///     and users with a pending invitation to it.
-        ///   - Private: owner only.
-        ///
-        /// When the caller is not entitled to read, this throws
-        /// KeyNotFoundException with the same "could not be found" message
-        /// used for genuinely missing rows. That's intentional — saying
-        /// "Forbidden" would leak the existence of a private playlist to
-        /// a stranger who guessed (or scraped) the id.
-        ///
-        /// currentUserId may be null to represent an anonymous caller; in
-        /// practice every route is behind [Authorize] so this branch is
-        /// defensive rather than actively exercised.
-        /// </summary>
         PlaylistResponse Get(string id, string? currentUserId);
-
-        /// <summary>
-        /// Internal/system read that bypasses visibility checks. Use only
-        /// from server-internal callers that already have authority to
-        /// load any playlist (e.g. the recommendation service consuming a
-        /// playlist's song list, background jobs). NEVER call from a
-        /// controller in response to user input.
-        /// </summary>
         PlaylistResponse GetInternal(string id);
-
-        /// <summary>
-        /// Playlists created by a given account, filtered by what the
-        /// current user is allowed to see on that account's profile.
-        ///
-        ///   - If targetAccountId == currentUserId: returns everything
-        ///     (Private + Unlisted + Public). This is "my library" view.
-        ///   - Otherwise: returns only Public playlists. Unlisted is
-        ///     deliberately excluded from profile views per the
-        ///     "shareable only by the owner" rule.
-        /// </summary>
         IEnumerable<PlaylistResponse> GetCreatedByAccount(string targetAccountId, string? currentUserId);
-
-        /// <summary>
-        /// The current user's saved playlists. Only the user themselves
-        /// (or an admin) may call this for a given accountid — the saved
-        /// list could otherwise expose Unlisted playlists shared
-        /// privately with that user.
-        ///
-        /// Throws AppException if currentUserId is not the target and
-        /// is not an admin.
-        /// </summary>
         IEnumerable<PlaylistResponse> GetSavedByAccount(string targetAccountId, string? currentUserId, bool isAdmin);
 
         /// <summary>
@@ -72,69 +24,10 @@ namespace SongAppApi.Services
         IEnumerable<PlaylistResponse> GetAll();
 
         PlaylistResponse Create(CreatePlaylistRequest request, Account account);
-
-        /// <summary>
-        /// Edit a playlist (name + tracklist). Only the owner or an admin
-        /// may do this; everyone else gets AppException.
-        ///
-        /// Authority lives in the service rather than the controller so
-        /// that all the auth rules for a playlist are in one place and
-        /// can't drift between caller paths.
-        /// </summary>
         PlaylistResponse Update(string id, UpdatePlaylistRequest request, string currentUserId, bool isAdmin);
-
-        /// <summary>
-        /// Delete a playlist. Only the owner or an admin may do this.
-        /// Cascade on accountplaylist removes the playlist from every
-        /// user's saved library; cascade on PlaylistInvitations removes
-        /// any pending invitations to it.
-        /// </summary>
         void Delete(string id, string currentUserId, bool isAdmin);
-
-        /// <summary>
-        /// Add the playlist to the current user's saved library.
-        ///
-        /// Authority is governed by the same visibility rules as Get:
-        /// Public is universally saveable; Unlisted is saveable by users
-        /// with a pending invitation (the direct-save flow doubles as
-        /// "accept this invitation"); Private is unreachable. If the
-        /// user can't see the playlist, throws KeyNotFoundException with
-        /// the same "could not be found" message used elsewhere — same
-        /// non-leak rationale as Get.
-        ///
-        /// Side effect: any pending invitation to this user for this
-        /// playlist is also deleted, since direct-save lands them in the
-        /// same end state as Accept and leaving the inbox row would be
-        /// stale.
-        ///
-        /// Idempotent: saving while already saved is a successful no-op.
-        /// </summary>
         PlaylistResponse Save(string playlistId, string currentUserId);
-
-        /// <summary>
-        /// Remove the playlist from the current user's saved library.
-        ///
-        /// Throws AppException if the user is the owner — the owner's
-        /// library is the canonical home of their playlists and
-        /// "unsaving your own creation" is a confusing state; the owner
-        /// should Delete instead. Throws KeyNotFoundException if the
-        /// user wasn't saved in the first place (defensive — the
-        /// frontend shouldn't have offered the button).
-        /// </summary>
         void Unsave(string playlistId, string currentUserId);
-
-        /// <summary>
-        /// Owner-or-admin changes the playlist's visibility.
-        ///
-        /// Side effect: when transitioning TO Private, all pending
-        /// invitations to the playlist are deleted (they're no longer
-        /// meaningful — the playlist is no longer shareable). Other
-        /// transitions leave invitations intact.
-        ///
-        /// Existing saves are NEVER stripped on visibility change. A
-        /// user who saved a Public playlist before it went Private
-        /// keeps their saved copy (per the design decision).
-        /// </summary>
         PlaylistResponse UpdateVisibility(string id, PlaylistVisibility visibility, string currentUserId, bool isAdmin);
     }
 
