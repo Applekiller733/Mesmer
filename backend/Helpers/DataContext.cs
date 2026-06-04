@@ -56,7 +56,7 @@
 
             modelBuilder.Entity<Song>()
                 .Property(s => s.PcaFeatures)
-                .HasColumnType("vector(15)");
+                .HasColumnType("vector(40)");
 
             modelBuilder.Entity<Playlist>()
                 .Property(x => x.Id)

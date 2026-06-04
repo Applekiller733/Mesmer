@@ -1,4 +1,5 @@
-﻿using SongAppApi.Models.Accounts;
+﻿using SongAppApi.Helpers.Enumerators;
+using SongAppApi.Models.Accounts;
 
 namespace SongAppApi.Models.Songs
 {
@@ -16,6 +17,9 @@ namespace SongAppApi.Models.Songs
         public string? VideoUrl { get; set; }
         public string? SoundUrl { get; set; }
         //Song Metadata
+        public Genre Genre { get; set; }
+
+        //trb scoase
         public float? Tempo { get; set; }
         public float? Danceability { get; set; }
         public float? Energy { get; set; }

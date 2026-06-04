@@ -1,12 +1,12 @@
 import { ThemeProvider } from "@emotion/react";
 import { darkTheme } from "../../themes/themes";
-import { Box, Button, Paper } from "@mui/material";
+import { Box, Button, Paper, Typography } from "@mui/material";
 import Navbar from "../../reusablecomponents/navbar";
-import AdminUserGrid from "./admingrid";
+import AdminUserGrid from "../../reusablecomponents/admin/admingrid";
+import AdminSongGrid from "../../reusablecomponents/admin/adminsonggrid";
 import type { User } from "../../models/user";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../../stores/slices/userdataslice";
-import { useAppDispatch } from "../../hooks/hooks";
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import './admin.css';
@@ -26,9 +26,18 @@ export default function AdminDashboard() {
                 isAdmin ?
                 <Box className="admin">
                     <Navbar></Navbar>
+
                     <Paper className="user-list-paper">
+                        <Typography variant="h5" sx={{ p: 2 }}>Users</Typography>
                         <AdminUserGrid></AdminUserGrid>
-                        <Button href="/song-upload">Upload Song</Button>
+                    </Paper>
+
+                    <Paper className="user-list-paper" sx={{ mt: 3 }}>
+                        <Typography variant="h5" sx={{ p: 2 }}>Songs</Typography>
+                        <AdminSongGrid></AdminSongGrid>
+                        <Box sx={{ p: 2 }}>
+                            <Button href="/song-upload">Upload Song</Button>
+                        </Box>
                     </Paper>
                 </Box>
                 :

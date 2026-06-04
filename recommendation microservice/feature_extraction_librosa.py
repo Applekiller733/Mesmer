@@ -14,23 +14,28 @@ logger = logging.getLogger(__name__)
 # would shift all spectral features.
 TARGET_SR = 22050
 
-# 30-second slice. Long enough for stable feature aggregates, short
-# enough that processing one song takes ~1-3 seconds on a modern CPU.
-SLICE_DURATION_SEC = 30.0
-
-# Where in the track to start the slice. 30s into the song is a sensible
-# default: clears most intros, lands inside the first verse / chorus
-# for typical pop structure.
-SLICE_OFFSET_SEC = 30.0
-
 # Number of MFCC coefficients. Matches AcousticBrainz's mfcc array
 # length (13). Librosa defaults to 20; we override.
 N_MFCC = 13
 
+# Fraction of the track to analyse. The remainder is split evenly
+# between the two ends: trimming the first and last 10% removes intros,
+# fade-ins, and fade-outs.
+ANALYSIS_FRACTION = 0.80
+TRIM_FRACTION = (1.0 - ANALYSIS_FRACTION) / 2  # 10% from each end
+
+# Below this duration the 10/80/10 split leaves too little audio for
+# stable feature aggregates. Short tracks get analysed whole.
+MIN_DURATION_FOR_TRIM_SEC = 30.0
+
+# Tag written to Songs.EnrichmentSource so we can tell rows enriched
+# with the current strategy apart from older ones at a glance.
+ENRICHMENT_SOURCE_TAG = "librosa:middle-80pct-schema2"
+
 
 def extract_features_from_audio(audio_path: str) -> Optional[List[float]]:
     """
-    Load an audio file, slice it, and produce the 22-element canonical
+    Load an audio file, slice it, and produce the 40-element canonical
     feature vector.
 
     Returns None on any failure — bad file, too short to slice, librosa
@@ -53,14 +58,10 @@ def extract_features_from_audio(audio_path: str) -> Optional[List[float]]:
         return None
 
     if not all(math.isfinite(v) for v in features):
-        # Inf or NaN — something went wrong (silent slice, all-zero
-        # spectrum, etc.). Don't pollute the dataset.
         logger.warning("Non-finite features extracted from %s", audio_path)
         return None
 
     if len(features) != FEATURE_COUNT:
-        # Defensive: this would be a code bug, not a data issue. Loud
-        # error so it's caught immediately rather than producing garbage.
         raise RuntimeError(
             f"Librosa extractor produced {len(features)} values, "
             f"schema expects {FEATURE_COUNT}. Update both together."
@@ -74,36 +75,19 @@ def extract_features_from_audio(audio_path: str) -> Optional[List[float]]:
 
 def _load_audio_slice(path: str) -> Tuple[np.ndarray, int]:
     """
-    Load a 30-second slice of the audio. Strategy:
-
-      - Track > 60s: start at 30s in, take next 30s.
-      - Track 30s-60s: start at midpoint, take rest (or 30s, whichever
-        is shorter).
-      - Track < 30s: take the whole thing.
-
-    librosa.load with offset/duration is much cheaper than loading the
-    full file and slicing — it uses libsoundfile to seek directly.
-
+    Load the middle 80% of the audio (10% trimmed from each end).
+    Tracks shorter than MIN_DURATION_FOR_TRIM_SEC are loaded whole.
     Returns (waveform, sample_rate).
     """
-    # First pass: just get the duration. Cheap — doesn't decode samples.
     duration = librosa.get_duration(path=path)
 
-    if duration > 60.0:
-        offset = SLICE_OFFSET_SEC
-        slice_len = SLICE_DURATION_SEC
-    elif duration > SLICE_DURATION_SEC:
-        # Track is between 30s and 60s — use the back half (avoids the
-        # intro), but cap at 30s.
-        offset = duration / 2
-        slice_len = min(SLICE_DURATION_SEC, duration - offset)
+    if duration >= MIN_DURATION_FOR_TRIM_SEC:
+        offset = duration * TRIM_FRACTION
+        slice_len = duration * ANALYSIS_FRACTION
     else:
         offset = 0.0
         slice_len = duration
 
-    # mono=True averages stereo to mono, matching AcousticBrainz
-    # (Essentia's music extractor does the same). sr=TARGET_SR resamples
-    # if needed.
     y, sr = librosa.load(
         path,
         sr=TARGET_SR,
@@ -118,19 +102,16 @@ def _compute_features(y: np.ndarray, sr: int) -> List[float]:
     """
     Run the actual feature extractors on an in-memory waveform. This
     function MUST produce values in the order defined by FEATURE_NAMES
-    in feature_schema.py — see comments alongside each block.
+    in feature_schema.py.
     """
 
     # --- Tempo (BPM) ----
-    # librosa.feature.tempo as of 0.10+ (was librosa.beat.tempo). Returns
-    # an ndarray even for mono input — convert to scalar with .item().
     tempo_arr = librosa.feature.tempo(y=y, sr=sr)
     tempo_bpm = float(tempo_arr.item() if tempo_arr.size == 1 else tempo_arr[0])
 
     # --- Loudness (proxy: RMS-based 0-1 dynamic range) ----
-    # AcousticBrainz's average_loudness is a 0-1 dynamic-range descriptor
-    # (1 = compressed/loud, 0 = wide dynamic range). Librosa doesn't
-    # have a direct equivalent; we approximate with mean RMS energy
+    # AcousticBrainz's average_loudness is a 0-1 dynamic-range descriptor.
+    # Librosa has no direct equivalent; we approximate with mean RMS
     # normalised by max RMS in the slice. Same direction, similar scale.
     rms = librosa.feature.rms(y=y).flatten()
     rms_max = float(np.max(rms)) if rms.size else 0.0
@@ -142,8 +123,6 @@ def _compute_features(y: np.ndarray, sr: int) -> List[float]:
     centroid_std = float(np.std(centroid))
 
     # --- Spectral rolloff (mean + std) ----
-    # Default rolloff is 85% — same as Essentia's default, so our values
-    # are comparable.
     rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr).flatten()
     rolloff_mean = float(np.mean(rolloff))
     rolloff_std = float(np.std(rolloff))
@@ -154,8 +133,6 @@ def _compute_features(y: np.ndarray, sr: int) -> List[float]:
     zcr_std = float(np.std(zcr))
 
     # --- 13 MFCC means ----
-    # n_mfcc=13 to match AcousticBrainz. Matrix shape: (n_mfcc, n_frames).
-    # We take the per-coefficient mean across frames.
     mfcc_matrix = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
     mfcc_means = mfcc_matrix.mean(axis=1)
     if mfcc_means.shape[0] != N_MFCC:
@@ -164,8 +141,32 @@ def _compute_features(y: np.ndarray, sr: int) -> List[float]:
         )
 
     # --- RMS energy mean ----
-    # Already computed above for loudness. Just expose the raw mean.
     rms_energy_mean = float(np.mean(rms))
+
+    # --- 12 chroma means (HPCP equivalent) ----
+    # chroma_stft is the standard pitch class profile in librosa. The
+    # cqt variant (chroma_cqt) is slightly better for polyphonic music
+    # but ~3x slower; stft is the right tradeoff at our scale.
+    chroma_matrix = librosa.feature.chroma_stft(y=y, sr=sr)
+    chroma_means = chroma_matrix.mean(axis=1)
+    if chroma_means.shape[0] != 12:
+        raise RuntimeError(
+            f"Expected 12 chroma values, got {chroma_means.shape[0]}"
+        )
+
+    # --- 6 spectral contrast means ----
+    # n_bands=5 because librosa returns (n_bands + 1) outputs. We want
+    # 6 to match Essentia/AcousticBrainz's default 6-band
+    # spectral_contrast_coeffs output.
+    contrast_matrix = librosa.feature.spectral_contrast(
+        y=y, sr=sr, n_bands=5
+    )
+    contrast_means = contrast_matrix.mean(axis=1)
+    if contrast_means.shape[0] != 6:
+        raise RuntimeError(
+            f"Expected 6 spectral contrast values, got "
+            f"{contrast_means.shape[0]}"
+        )
 
     return [
         tempo_bpm,
@@ -178,6 +179,8 @@ def _compute_features(y: np.ndarray, sr: int) -> List[float]:
         zcr_std,
         *[float(v) for v in mfcc_means],
         rms_energy_mean,
+        *[float(v) for v in chroma_means],
+        *[float(v) for v in contrast_means],
     ]
 
 
@@ -193,6 +196,8 @@ FEATURE_SOURCE_DESCRIPTIONS = [
     "std(zero_crossing_rate)",
     *[f"mean(mfcc[{i}]) over frames, n_mfcc=13" for i in range(13)],
     "mean(RMS)",
+    *[f"mean(chroma_stft[{i}]) over frames" for i in range(12)],
+    *[f"mean(spectral_contrast[{i}]) over frames, n_bands=5" for i in range(6)],
 ]
 assert len(FEATURE_SOURCE_DESCRIPTIONS) == len(FEATURE_NAMES), (
     "FEATURE_SOURCE_DESCRIPTIONS got out of sync with FEATURE_NAMES — "

@@ -45,6 +45,7 @@ namespace SongAppApi.Entities
         public Vector? PcaFeatures { get; set; }
         public EnrichmentStatus EnrichmentStatus { get; set; } = EnrichmentStatus.Pending;
         public string? EnrichmentSource { get; set; }
+        public Genre Genre { get; set; } = Genre.Unknown;
 
     }
 }

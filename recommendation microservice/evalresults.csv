@@ -1,0 +1,9 @@
+setup,top_k,variant,p_at_k,hr_at_k,mrr,queries
+genre_relevance,5,Hybrid (acoustic + genre RRF),0.600000,1.000000,0.833333,3
+genre_relevance,5,Acoustic-only RRF,0.200000,1.000000,0.361111,3
+genre_relevance,5,Centroid (legacy),0.200000,0.666667,0.277778,3
+genre_relevance,5,Random baseline,0.266667,0.666667,0.444444,3
+leave_one_out,5,Hybrid (acoustic + genre RRF),0.057143,0.285714,0.192857,14
+leave_one_out,5,Acoustic-only RRF,0.057143,0.285714,0.082143,14
+leave_one_out,5,Centroid (legacy),0.028571,0.142857,0.028571,14
+leave_one_out,5,Random baseline,0.042857,0.214286,0.064286,14

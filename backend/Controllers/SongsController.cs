@@ -150,5 +150,25 @@ namespace SongAppApi.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [Authorization.Authorize(Role.Admin)]
+        [HttpPut]
+        public ActionResult<SongResponse> Update(UpdateSongRequest request)
+        {
+            try
+            {
+                if (Account == null) return Unauthorized();
+                var response = _service.Update(request);
+                return Ok(response);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

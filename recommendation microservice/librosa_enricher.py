@@ -5,7 +5,10 @@ import warnings
 
 from db import get_connection
 from audio_fetcher import fetch_audio_to_tempfile
-from feature_extraction_librosa import extract_features_from_audio
+from feature_extraction_librosa import (
+    extract_features_from_audio,
+    ENRICHMENT_SOURCE_TAG,
+)
 
 # Must match backend/Entities/EnrichmentStatus.cs
 STATUS_PENDING = 0
@@ -13,7 +16,7 @@ STATUS_ENRICHED_ACOUSTICBRAINZ = 1
 STATUS_ENRICHED_LIBROSA = 2
 STATUS_FAILED = 3
 
-DB_BATCH_SIZE = 50
+DB_BATCH_SIZE = 500
 
 
 def setup_logging(verbose: bool):
@@ -47,11 +50,27 @@ def setup_logging(verbose: bool):
     # extractor.
     warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 
+def enrich_failed_songs_with_audio(
+    limit: int = DB_BATCH_SIZE, reanalyze: bool = False,
+) -> int:
+    """
+    Run Librosa extraction over songs that need it.
 
-def enrich_failed_songs_with_audio(limit: int = DB_BATCH_SIZE) -> int:
+    Default mode picks up only Failed songs (AcousticBrainz had no data
+    but we have audio). With reanalyze=True, also re-processes songs
+    already enriched by Librosa — useful after changing the slicing
+    strategy or feature computation, so existing rows get refreshed
+    rather than left on stale features.
+    """
     log = logging.getLogger("librosa_enricher")
     enriched = 0
     failed_extraction = 0
+
+    if reanalyze:
+        status_filter = [STATUS_FAILED, STATUS_ENRICHED_LIBROSA]
+        log.info("Reanalyze mode: including previously librosa-enriched songs.")
+    else:
+        status_filter = [STATUS_FAILED]
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -59,20 +78,20 @@ def enrich_failed_songs_with_audio(limit: int = DB_BATCH_SIZE) -> int:
                 """
                 SELECT "Id", "Name", "Artist"
                 FROM "Songs"
-                WHERE "EnrichmentStatus" = %s
+                WHERE "EnrichmentStatus" = ANY(%s::int[])
                   AND "SoundId" IS NOT NULL
                 LIMIT %s
                 """,
-                (STATUS_FAILED, limit),
+                (status_filter, limit),
             )
             rows = cur.fetchall()
 
         if not rows:
-            log.info("No Failed-with-audio songs to process. Done.")
+            log.info("No songs to process. Done.")
             return 0
 
         log.info(
-            "Processing %d songs with Librosa (~1-3s per song)...", len(rows)
+            "Processing %d songs with Librosa (~2-5s per song)...", len(rows)
         )
 
         for song_id, name, artist in rows:
@@ -106,10 +125,11 @@ def enrich_failed_songs_with_audio(limit: int = DB_BATCH_SIZE) -> int:
                     UPDATE "Songs"
                     SET "RawFeatures" = %s,
                         "EnrichmentStatus" = %s,
-                        "EnrichmentSource" = 'librosa:30s-from-30s'
+                        "EnrichmentSource" = %s
                     WHERE "Id" = %s
                     """,
-                    (features, STATUS_ENRICHED_LIBROSA, song_id),
+                    (features, STATUS_ENRICHED_LIBROSA,
+                     ENRICHMENT_SOURCE_TAG, song_id),
                 )
                 conn.commit()
                 enriched += 1
@@ -123,10 +143,15 @@ def enrich_failed_songs_with_audio(limit: int = DB_BATCH_SIZE) -> int:
     )
     return enriched
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Enrich Failed songs with Librosa-extracted audio features."
+    )
+    parser.add_argument(
+    "--reanalyze", action="store_true",
+    help="Also re-process songs already enriched by Librosa. Use after "
+         "changing the extraction strategy (slice length, features, "
+         "etc.) so existing rows are refreshed with the new logic.",
     )
     parser.add_argument(
         "--limit", type=int, default=DB_BATCH_SIZE,
@@ -139,7 +164,7 @@ def main():
     log = logging.getLogger("main")
 
     log.info("=== Stage 3: Librosa enrichment ===")
-    enrich_failed_songs_with_audio(limit=args.limit)
+    enrich_failed_songs_with_audio(limit=args.limit, reanalyze=args.reanalyze)
     log.info(
         "All done. Run again to process more, or proceed to Stage 4 "
         "(fit scaler + PCA)."

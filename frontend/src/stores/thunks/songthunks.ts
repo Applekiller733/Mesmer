@@ -1,7 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import type {Song, CreateSongRequest, DeleteSongRequest, FlipLikeRequest} from "../../models/song";
+import type {Song, CreateSongRequest, DeleteSongRequest, FlipLikeRequest, UpdateSongRequest} from "../../models/song";
 // import type CreateSongRequest from "../../models/song";
-import { apicreatesong, apideletesong, apifetchsongbyid, apifetchsongids, apifetchsongs, apifliplike } from "../api/songapi";
+import { apicreatesong, apideletesong, apifetchsongbyid, apifetchsongids, apifetchsongs, apifliplike, apiupdatesong } from "../api/songapi";
 
 export const fetchSongs = createAsyncThunk('songs/fetchSongs', async (_, thunkAPI) => {
     try {
@@ -47,6 +47,18 @@ export const deleteSong = createAsyncThunk('songs/deleteSong', async (request: D
         return thunkAPI.rejectWithValue(err.message);
     }
 })
+
+export const updateSong = createAsyncThunk(
+    'songs/updateSong',
+    async (request: UpdateSongRequest, thunkAPI) => {
+        try {
+            return await apiupdatesong(request);
+        } catch (err: any) {
+            return thunkAPI.rejectWithValue(err.message);
+        }
+    },
+);
+
 
 export const flipLike = createAsyncThunk('songs/flipLike', async (request: FlipLikeRequest, thunkAPI) => {
     try{

@@ -1,3 +1,5 @@
+import { Genre } from "./genre";
+
 export interface Song {
     id: string,
     name: string,
@@ -7,6 +9,7 @@ export interface Song {
     imageUrl?: string,
     videoUrl?: string,
     soundUrl?: string,
+    genre?: Genre,
 }
 
 
@@ -16,7 +19,14 @@ export interface CreateSongRequest {
     imageUrl?: string;
     videoUrl?: string;
     soundUrl?: string;
-    soundFile?: File | null;   
+    soundFile?: File | null;
+}
+
+export interface UpdateSongRequest {
+    id: string;
+    name?: string;
+    artist?: string;
+    genre?: Genre;
 }
 
 export interface DeleteSongRequest {
@@ -24,5 +34,5 @@ export interface DeleteSongRequest {
 }
 
 export interface FlipLikeRequest {
-    id:string,
+    id: string,
 }

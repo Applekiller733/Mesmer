@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import warnings
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -14,12 +14,13 @@ from psycopg2.extras import execute_values
 from db import get_connection
 from feature_schema import FEATURE_COUNT, PCA_COMPONENTS, SCHEMA_VERSION
 
-SCALER_PATH = "scaler_v2.pkl"
-PCA_PATH = "pca_v2.pkl"
+# Schema-versioned artefact names so old (22-feature) files are never
+# accidentally loaded against the new (40-feature) pipeline.
+SCALER_PATH = f"scaler_schema{SCHEMA_VERSION}.pkl"
+PCA_PATH = f"pca_schema{SCHEMA_VERSION}.pkl"
 
 MIN_SAMPLES_FOR_RELIABLE_FIT = 50
 
-# Updates to PcaFeatures happen in batches via execute_values for speed.
 UPDATE_BATCH_SIZE = 200
 
 
@@ -29,7 +30,6 @@ def setup_logging(verbose: bool):
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    # Same noisy-library suppression as the librosa enricher uses.
     for noisy in ("numba", "matplotlib", "PIL", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
@@ -42,10 +42,6 @@ def load_all_raw_features() -> Tuple[List[str], np.ndarray]:
     """
     Load every song's RawFeatures. Returns (song_ids, features_matrix)
     where features_matrix has shape (n_songs, FEATURE_COUNT).
-
-    Songs without RawFeatures (Pending or Failed-without-audio) are
-    skipped — they contribute nothing to the fit and won't be
-    transformable until they get features.
     """
     log = logging.getLogger("load")
     with get_connection() as conn:
@@ -65,8 +61,6 @@ def load_all_raw_features() -> Tuple[List[str], np.ndarray]:
     song_ids: List[str] = []
     features: List[List[float]] = []
     for sid, raw in rows:
-        # Sanity: drop anything that doesn't match the canonical length.
-        # Could happen if the schema was bumped and old rows survived.
         if raw is None or len(raw) != FEATURE_COUNT:
             log.warning(
                 "Song %s has %s features (expected %d) — skipping",
@@ -113,13 +107,8 @@ def load_untransformed_raw_features() -> Tuple[List[str], np.ndarray]:
 def write_pca_features(rows: List[Tuple[str, List[float]]]) -> int:
     """
     Bulk-update PcaFeatures for the given (song_id, vector) pairs.
-
-    pgvector accepts a Python list of floats directly when the column is
-    declared as `vector(N)` — psycopg2's `register_vector` (called in
-    db.get_connection) handles the conversion.
-
-    Uses execute_values for efficiency; one round-trip per chunk
-    instead of one per row.
+    Vectors are always FEATURE_COUNT-dimensional — see transform_to_storage_space
+    for the padding rationale.
     """
     if not rows:
         return 0
@@ -129,8 +118,6 @@ def write_pca_features(rows: List[Tuple[str, List[float]]]) -> int:
         with conn.cursor() as cur:
             for i in range(0, len(rows), UPDATE_BATCH_SIZE):
                 chunk = rows[i : i + UPDATE_BATCH_SIZE]
-                # execute_values with UPDATE...FROM(VALUES) is the
-                # standard psycopg2 idiom for bulk updates.
                 execute_values(
                     cur,
                     """
@@ -150,23 +137,26 @@ def write_pca_features(rows: List[Tuple[str, List[float]]]) -> int:
 # ---- Fit / transform --------------------------------------------------------
 
 
-def fit_scaler_and_pca(features: np.ndarray) -> Tuple[StandardScaler, PCA]:
+def fit_scaler_and_optional_pca(
+    features: np.ndarray,
+    n_components: Optional[int],
+) -> Tuple[StandardScaler, Optional[PCA]]:
     """
-    Fit a StandardScaler and PCA(15) on the given (n_songs, 22) matrix.
-    Saves both to disk with version-suffixed names.
+    Fit a StandardScaler on (n_songs, FEATURE_COUNT). If n_components
+    is set and < FEATURE_COUNT, also fit a PCA. None means no PCA —
+    only standardisation is applied.
     """
     log = logging.getLogger("fit")
 
     if features.shape[0] < FEATURE_COUNT:
         raise RuntimeError(
-            f"Need at least {FEATURE_COUNT} samples to fit PCA with "
-            f"{PCA_COMPONENTS} components — got {features.shape[0]}. "
-            "Run more enrichment first."
+            f"Need at least {FEATURE_COUNT} samples to fit, got "
+            f"{features.shape[0]}. Enrich more songs first."
         )
     if features.shape[0] < MIN_SAMPLES_FOR_RELIABLE_FIT:
         log.warning(
-            "Fitting on only %d samples. PCA will work but components may "
-            "be noisy. Recommend at least %d for stable results.",
+            "Fitting on only %d samples. Components may be noisy. "
+            "Recommend at least %d for stable results.",
             features.shape[0], MIN_SAMPLES_FOR_RELIABLE_FIT,
         )
 
@@ -174,52 +164,97 @@ def fit_scaler_and_pca(features: np.ndarray) -> Tuple[StandardScaler, PCA]:
     scaler = StandardScaler()
     scaled = scaler.fit_transform(features)
 
-    log.info("Fitting PCA (%d components)...", PCA_COMPONENTS)
-    pca = PCA(n_components=PCA_COMPONENTS)
+    if n_components is None or n_components >= FEATURE_COUNT:
+        log.info(
+            "Skipping PCA — features stored at full dimension (%d). "
+            "All variance retained.", FEATURE_COUNT,
+        )
+        return scaler, None
+
+    log.info("Fitting PCA (%d components)...", n_components)
+    pca = PCA(n_components=n_components, whiten=True)
+    # pca = PCA(n_components=n_components);
     pca.fit(scaled)
 
-    cumvar = pca.explained_variance_ratio_.cumsum()[-1]
+    cumvar = pca.explained_variance_ratio_.sum()
     log.info(
-        "PCA fit done. Cumulative explained variance: %.1f%% "
-        "(higher is better; >85%% is good for 15 components on 22 features)",
+        "PCA fit done. Cumulative explained variance: %.1f%%",
         cumvar * 100,
     )
-
-    log.info("Saving scaler -> %s, pca -> %s", SCALER_PATH, PCA_PATH)
-    joblib.dump(scaler, SCALER_PATH)
-    joblib.dump(pca, PCA_PATH)
-
     return scaler, pca
 
 
-def load_scaler_and_pca() -> Tuple[StandardScaler, PCA]:
-    """
-    Load the saved scaler + PCA from disk. Errors loudly if they don't
-    exist (caller should run --fit first).
-    """
-    if not os.path.exists(SCALER_PATH) or not os.path.exists(PCA_PATH):
-        raise FileNotFoundError(
-            f"Missing {SCALER_PATH} or {PCA_PATH}. Run with --fit first "
-            "to train the scaler and PCA on your enriched data."
-        )
-    return joblib.load(SCALER_PATH), joblib.load(PCA_PATH)
-
-
-def transform_to_pca_space(
-    features: np.ndarray, scaler: StandardScaler, pca: PCA
+def transform_to_storage_space(
+    features: np.ndarray,
+    scaler: StandardScaler,
+    pca: Optional[PCA],
 ) -> np.ndarray:
-    """Apply scaler then PCA. Returns shape (n_songs, PCA_COMPONENTS)."""
-    return pca.transform(scaler.transform(features))
+    """
+    Apply scaler (and PCA if provided), then pad to FEATURE_COUNT dims.
+
+    Why pad? The PcaFeatures column is declared as vector(FEATURE_COUNT)
+    so the same column accommodates both PCA-reduced and no-PCA modes
+    without a schema migration. Padding with trailing zeros does NOT
+    affect cosine similarity rankings: the dot product is unchanged
+    (zeros contribute zero), and the magnitudes are unchanged (zeros
+    don't increase |v|), so cosine(A_padded, B_padded) == cosine(A, B).
+    """
+    scaled = scaler.transform(features)
+
+    if pca is None:
+        # scaled is already (n, FEATURE_COUNT)
+        return scaled.astype(np.float32)
+
+    reduced = pca.transform(scaled)  # (n, n_components)
+    n_samples, k = reduced.shape
+
+    if k == FEATURE_COUNT:
+        return reduced.astype(np.float32)
+
+    padded = np.zeros((n_samples, FEATURE_COUNT), dtype=np.float32)
+    padded[:, :k] = reduced
+    return padded
+
+
+def save_models(scaler: StandardScaler, pca: Optional[PCA]):
+    """Persist scaler and (optional) PCA. Removes stale PCA file when
+    switching from PCA mode to no-PCA mode."""
+    log = logging.getLogger("fit")
+    log.info("Saving scaler -> %s", SCALER_PATH)
+    joblib.dump(scaler, SCALER_PATH)
+
+    if pca is None:
+        if os.path.exists(PCA_PATH):
+            os.remove(PCA_PATH)
+            log.info("Removed stale %s (no-PCA mode active)", PCA_PATH)
+    else:
+        log.info("Saving pca -> %s", PCA_PATH)
+        joblib.dump(pca, PCA_PATH)
+
+
+def load_models() -> Tuple[StandardScaler, Optional[PCA]]:
+    """Load scaler (required) and PCA (optional)."""
+    if not os.path.exists(SCALER_PATH):
+        raise FileNotFoundError(
+            f"Missing {SCALER_PATH}. Run with --fit first to train the "
+            "scaler on your enriched data."
+        )
+    scaler = joblib.load(SCALER_PATH)
+    pca = joblib.load(PCA_PATH) if os.path.exists(PCA_PATH) else None
+    return scaler, pca
 
 
 # ---- Modes ------------------------------------------------------------------
 
 
-def run_fit_mode():
+def run_fit_mode(n_components: Optional[int]):
     log = logging.getLogger("fit_mode")
     log.info("=== Stage 4: FIT mode ===")
-    log.info("Schema version: %d, expected feature count: %d",
-             SCHEMA_VERSION, FEATURE_COUNT)
+    log.info(
+        "Schema version: %d, feature count: %d, target components: %s",
+        SCHEMA_VERSION, FEATURE_COUNT,
+        "none (no-PCA)" if n_components is None else n_components,
+    )
 
     song_ids, raw = load_all_raw_features()
     if len(song_ids) == 0:
@@ -231,12 +266,13 @@ def run_fit_mode():
 
     log.info("Loaded %d enriched songs.", len(song_ids))
 
-    scaler, pca = fit_scaler_and_pca(raw)
+    scaler, pca = fit_scaler_and_optional_pca(raw, n_components)
+    save_models(scaler, pca)
 
-    log.info("Transforming all %d songs into PCA space...", len(song_ids))
-    pca_features = transform_to_pca_space(raw, scaler, pca)
+    log.info("Transforming all %d songs into storage space...", len(song_ids))
+    stored = transform_to_storage_space(raw, scaler, pca)
 
-    rows = [(sid, vec.tolist()) for sid, vec in zip(song_ids, pca_features)]
+    rows = [(sid, vec.tolist()) for sid, vec in zip(song_ids, stored)]
     written = write_pca_features(rows)
     log.info("PcaFeatures updated for %d songs.", written)
     return 0
@@ -246,7 +282,11 @@ def run_transform_mode():
     log = logging.getLogger("transform_mode")
     log.info("=== Stage 4: TRANSFORM mode (incremental) ===")
 
-    scaler, pca = load_scaler_and_pca()
+    scaler, pca = load_models()
+    log.info(
+        "Loaded models. Mode: %s",
+        "no-PCA (scaler only)" if pca is None else f"PCA({pca.n_components_})",
+    )
 
     song_ids, raw = load_untransformed_raw_features()
     if len(song_ids) == 0:
@@ -254,9 +294,9 @@ def run_transform_mode():
         return 0
 
     log.info("Transforming %d new song(s)...", len(song_ids))
-    pca_features = transform_to_pca_space(raw, scaler, pca)
+    stored = transform_to_storage_space(raw, scaler, pca)
 
-    rows = [(sid, vec.tolist()) for sid, vec in zip(song_ids, pca_features)]
+    rows = [(sid, vec.tolist()) for sid, vec in zip(song_ids, stored)]
     written = write_pca_features(rows)
     log.info("PcaFeatures updated for %d songs.", written)
     return 0
@@ -264,12 +304,24 @@ def run_transform_mode():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fit scaler + PCA and/or transform raw features into PCA space."
+        description="Fit scaler (+ optional PCA) and/or transform raw "
+                    "features into the storage space.",
     )
     parser.add_argument(
         "--fit", action="store_true",
-        help="Re-fit scaler + PCA from all enriched songs and re-transform "
-             "every row. Use after major dataset or schema changes.",
+        help="Re-fit scaler (+ PCA) from all enriched songs and "
+             "re-transform every row. Use after dataset growth or "
+             "schema changes.",
+    )
+    parser.add_argument(
+        "--no-pca", action="store_true",
+        help="Skip PCA entirely. Features are only standardized. "
+             "Stores full-dimensional vectors. All variance retained.",
+    )
+    parser.add_argument(
+        "--components", type=int, default=None,
+        help=f"PCA component count override (default {PCA_COMPONENTS}). "
+             "Ignored with --no-pca.",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -277,7 +329,17 @@ def main():
     setup_logging(args.verbose)
 
     if args.fit:
-        return run_fit_mode()
+        if args.no_pca:
+            n_components = None
+        else:
+            n_components = args.components if args.components else PCA_COMPONENTS
+        return run_fit_mode(n_components)
+
+    if args.no_pca or args.components is not None:
+        logging.getLogger("main").warning(
+            "--no-pca / --components are only meaningful with --fit. "
+            "Transform mode uses whatever models are saved on disk."
+        )
     return run_transform_mode()
 
 

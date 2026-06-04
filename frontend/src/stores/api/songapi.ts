@@ -1,5 +1,5 @@
 
-import type { Song, CreateSongRequest, DeleteSongRequest, FlipLikeRequest } from "../../models/song";
+import type { Song, CreateSongRequest, DeleteSongRequest, FlipLikeRequest, UpdateSongRequest } from "../../models/song";
 // import type Song from "../../models/song";
 import authHeader from "./apihelper";
 
@@ -179,6 +179,23 @@ export async function apideletesong(request: DeleteSongRequest) {
 
     return data;
 }
+
+export async function apiupdatesong(request: UpdateSongRequest) {
+    const url = `${API_URL}`;
+    const response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeader(url) },
+        body: JSON.stringify(request),
+    });
+ 
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.message || "Updating Song failed");
+    }
+ 
+    return data;
+}
+
 
 export async function apifliplike(request: FlipLikeRequest) {
     const url = `${API_URL}/flip-like`;

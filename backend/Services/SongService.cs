@@ -15,9 +15,8 @@ namespace SongAppApi.Services
         IEnumerable<string> GetAllIds();
         SongResponse Create(CreateSongRequest request, Account account);
         void Delete(string id);
+        SongResponse Update(UpdateSongRequest request);
         UpvotesResponse FlipLike(string id, Account account);
-
-        // New: needed by the audio streaming endpoint to find the on-disk file.
         Entities.File? GetSoundFile(string songId);
     }
 
@@ -91,6 +90,24 @@ namespace SongAppApi.Services
             var song = getSong(id);
             _context.Songs.Remove(song);
             _context.SaveChanges();
+        }
+
+        public SongResponse Update(UpdateSongRequest request)
+        {
+            var song = getSong(request.Id);
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+                song.Name = request.Name;
+
+            if (!string.IsNullOrWhiteSpace(request.Artist))
+                song.Artist = request.Artist;
+
+            if (request.Genre.HasValue)
+                song.Genre = request.Genre.Value;
+
+            _context.SaveChanges();
+
+            return _mapper.Map<SongResponse>(song);
         }
 
         public UpvotesResponse FlipLike(string id, Account account)
