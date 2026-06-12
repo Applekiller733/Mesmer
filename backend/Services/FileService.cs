@@ -25,8 +25,8 @@ namespace SongAppApi.Services
         private readonly AppSettings _settings;
         private readonly FileUploadSettings _uploadSettings;
 
-        // Cached lookup for case-insensitive extension matching.
-        // Built once at construction; appsettings.json reload would require restart.
+        // cached lookup for case-insensitive extension matching
+        // built once at construction; appsettings.json reload would require restart
         private readonly IReadOnlyDictionary<FileCategory, HashSet<string>> _allowedExtensions;
         private readonly IReadOnlyDictionary<FileCategory, long> _maxSizeBytes;
 
@@ -40,8 +40,7 @@ namespace SongAppApi.Services
             _settings = settings.Value;
             _uploadSettings = uploadSettings.Value;
 
-            // Build lookup tables from config. Validation here means a misconfigured
-            // appsettings.json fails fast at startup rather than on the first upload.
+            // build lookup tables from config
             var asDict = _uploadSettings.AsDictionary();
 
             _allowedExtensions = asDict.ToDictionary(
@@ -54,8 +53,6 @@ namespace SongAppApi.Services
                 kvp => kvp.Key,
                 kvp => kvp.Value.MaxSizeBytes);
 
-            // Sanity check: a category with zero allowed extensions is almost
-            // certainly a config typo. Surface it loudly.
             foreach (var (category, exts) in _allowedExtensions)
             {
                 if (exts.Count == 0)
@@ -123,20 +120,20 @@ namespace SongAppApi.Services
             if (formFile == null || formFile.Length == 0)
                 throw new ArgumentException("File is empty.", nameof(formFile));
 
-            // 1. Size check — sourced from appsettings.json via IOptions<FileUploadSettings>
+            // check size
             var maxSize = _maxSizeBytes[category];
             if (formFile.Length > maxSize)
                 throw new InvalidOperationException(
                     $"File too large. Maximum {maxSize / (1024 * 1024)} MB for {category}.");
 
-            // 2. Extension whitelist — also from config
+            // chk extension
             var originalName = formFile.FileName;
             var extension = Path.GetExtension(originalName);
             if (string.IsNullOrEmpty(extension) || !_allowedExtensions[category].Contains(extension))
                 throw new InvalidOperationException(
                     $"Extension '{extension}' is not allowed for {category}.");
 
-            // 3. Sanitize filename — never trust client input
+            // sanitize file name
             var safeFileName = $"{Guid.NewGuid():N}{extension}";
 
             var directory = Path.Combine(Directory.GetCurrentDirectory(), "Resources", subfolderpath);

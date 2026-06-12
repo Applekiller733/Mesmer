@@ -15,14 +15,7 @@ namespace SongAppApi.Services
         PlaylistResponse GetInternal(string id);
         IEnumerable<PlaylistResponse> GetCreatedByAccount(string targetAccountId, string? currentUserId);
         IEnumerable<PlaylistResponse> GetSavedByAccount(string targetAccountId, string? currentUserId, bool isAdmin);
-
-        /// <summary>
-        /// Admin-only firehose. Use sparingly — returns every playlist in
-        /// the database regardless of visibility. The controller gates
-        /// this behind [Authorize(Role.Admin)].
-        /// </summary>
         IEnumerable<PlaylistResponse> GetAll();
-
         PlaylistResponse Create(CreatePlaylistRequest request, Account account);
         PlaylistResponse Update(string id, UpdatePlaylistRequest request, string currentUserId, bool isAdmin);
         void Delete(string id, string currentUserId, bool isAdmin);
@@ -52,8 +45,7 @@ namespace SongAppApi.Services
 
             if (!CanView(playlist, viewerGuid))
             {
-                // Deliberately throw the same exception as a missing row.
-                // See the interface doc for rationale (info disclosure).
+                //throw not found rather than forbid
                 throw new KeyNotFoundException("Playlist could not be found");
             }
 
@@ -70,11 +62,6 @@ namespace SongAppApi.Services
         {
             var playlists = getAllByAccount(targetAccountId);
 
-            // Self-view: pass everything through. Other-view: hide
-            // Unlisted and Private. The filtering is done in-memory after
-            // the DB pull; the per-account playlist count is bounded and
-            // small enough that an extra LINQ pass isn't worth a second
-            // query path.
             if (currentUserId != null && currentUserId == targetAccountId)
                 return _mapper.Map<List<PlaylistResponse>>(playlists);
 
@@ -86,9 +73,6 @@ namespace SongAppApi.Services
 
         public IEnumerable<PlaylistResponse> GetSavedByAccount(string targetAccountId, string? currentUserId, bool isAdmin)
         {
-            // Saved playlists are intrinsically personal — even for a
-            // Public playlist, the fact that "user X saved playlist Y"
-            // is metadata about user X. Don't expose it to others.
             if (!isAdmin && (currentUserId == null || currentUserId != targetAccountId))
                 throw new AppException("You can only view your own saved playlists.");
 
@@ -98,9 +82,6 @@ namespace SongAppApi.Services
 
         public IEnumerable<PlaylistResponse> GetAll()
         {
-            // Caller (controller) is responsible for gating to Role.Admin.
-            // We could re-check here but the service has no notion of role,
-            // and double-gating bloats the interface.
             var playlists = getAll();
             return _mapper.Map<List<PlaylistResponse>>(playlists);
         }
@@ -111,10 +92,6 @@ namespace SongAppApi.Services
             playlist.CreatedBy = account;
             playlist.CreatedAt = DateTime.UtcNow;
 
-            // Carry the requested visibility through; default to Private if
-            // the client didn't specify. Mapping from CreatePlaylistRequest
-            // sets this when the field is present, but AutoMapper will not
-            // overwrite to default when null — be explicit.
             if (request.Visibility.HasValue)
                 playlist.Visibility = request.Visibility.Value;
             else
@@ -160,16 +137,10 @@ namespace SongAppApi.Services
             var viewerGuid = TryParseGuid(currentUserId)
                 ?? throw new AppException("Invalid user id.");
 
-            // Reuse the same visibility predicate as Get — saving is just
-            // "I want a persistent reference to a thing I can already see."
-            // Throw the same not-found exception on failure so we don't
-            // disclose private-playlist existence here either.
             if (!CanView(playlist, viewerGuid))
                 throw new KeyNotFoundException("Playlist could not be found");
 
-            // Idempotent: already saved is a successful no-op. Don't
-            // bother hitting the DB for the join-table insert; just
-            // return the current state.
+            // idempotency
             if (playlist.SavedByAccounts.Any(a => a.Id == viewerGuid))
                 return _mapper.Map<PlaylistResponse>(playlist);
 
@@ -178,12 +149,6 @@ namespace SongAppApi.Services
 
             playlist.SavedByAccounts.Add(account);
 
-            // Direct-save also clears any pending invitation for this
-            // (playlist, receiver) pair. The user has effectively
-            // accepted, so the inbox row would otherwise sit there
-            // duplicated for an already-saved playlist. FirstOrDefault
-            // because the row may not exist (e.g., saving a Public
-            // playlist no one invited them to).
             var pendingInvitation = _context.PlaylistInvitations
                 .FirstOrDefault(i => i.PlaylistId == playlist.Id && i.ReceiverId == viewerGuid);
             if (pendingInvitation != null)
@@ -200,10 +165,7 @@ namespace SongAppApi.Services
             var viewerGuid = TryParseGuid(currentUserId)
                 ?? throw new AppException("Invalid user id.");
 
-            // Owner-unsave is intentionally rejected. Their library is
-            // the canonical home of their creations; "I own this but
-            // it's not in my library" is a confusing state that should
-            // be Delete instead.
+            // owner cant unsave, only delete
             if (playlist.CreatedById == viewerGuid)
                 throw new AppException(
                     "You can't unsave a playlist you created. Delete it instead.");
@@ -224,28 +186,22 @@ namespace SongAppApi.Services
             EnsureOwnerOrAdmin(playlist, currentUserId, isAdmin,
                 "Only the playlist's owner can change its visibility.");
 
-            // Defensive: reject an unknown enum value rather than letting
-            // it land in the database. Enum.IsDefined catches the case
-            // where the JSON deserialiser accepted an out-of-range int.
+            //reject unknown enum
             if (!Enum.IsDefined(typeof(PlaylistVisibility), visibility))
                 throw new AppException($"Invalid visibility value: {visibility}.");
 
-            // No-op fast path. Saves a write and avoids spuriously
-            // cancelling invitations if a UI accidentally re-PATCHes
-            // the same value.
+            //no op if vis is correct
             if (playlist.Visibility == visibility)
                 return _mapper.Map<PlaylistResponse>(playlist);
 
-            // Side effect: transitioning TO Private invalidates pending
-            // invitations to this playlist. The playlist is no longer
-            // shareable in that state, so the inbox rows would be
-            // stale (and accepting one would land the receiver in a
-            // weird state where they have a Private playlist they
-            // technically can see).
-            //
-            // Transitions between Public and Unlisted leave invitations
-            // alone — both states still allow sharing in some form, and
-            // the invitations were valid at the time they were sent.
+            // if switching to private, delete any pending invitations
+            // since they can't be accepted anymore and would be confusing
+            // to leave hanging around
+
+            // don't worry about existing accepted
+            // invitations or saved library entries,
+            // those users keep access until they lose it by unsaving or the owner
+            // deleting the playlist. 
             if (visibility == PlaylistVisibility.Private)
             {
                 var stalePendingInvitations = _context.PlaylistInvitations
@@ -262,11 +218,6 @@ namespace SongAppApi.Services
             return _mapper.Map<PlaylistResponse>(playlist);
         }
 
-        /// <summary>
-        /// Owner-or-admin gate. The owner-only/admin distinction matches
-        /// the controller-level check the codebase already uses for
-        /// account update/delete (AccountsController.Delete).
-        /// </summary>
         private static void EnsureOwnerOrAdmin(
             Playlist playlist, string currentUserId, bool isAdmin, string forbiddenMessage)
         {
@@ -279,51 +230,23 @@ namespace SongAppApi.Services
                 throw new AppException(forbiddenMessage);
         }
 
-        // ---- Visibility helper ----
-
-        /// <summary>
-        /// Central authorization predicate. Anything that reads a single
-        /// playlist on behalf of a user routes through here. Keep the
-        /// logic in one place so the rules don't drift between Get,
-        /// future share endpoints, and the recommender's safe-mode read.
-        /// </summary>
+        // vis helper
         private bool CanView(Playlist playlist, Guid? userId)
         {
-            // Public is universally visible to authenticated AND
-            // unauthenticated callers. (Anonymous routes don't exist yet
-            // but this leaves the door open.)
             if (playlist.Visibility == PlaylistVisibility.Public)
                 return true;
 
-            // Below this point we need to know who's asking.
             if (userId == null)
                 return false;
 
             var uid = userId.Value;
 
-            // Owner always sees their own playlists.
             if (playlist.CreatedById == uid)
                 return true;
 
-            // A user who has the playlist in their saved library has
-            // legitimate access — whether they got it via accepting an
-            // invitation or by saving while it was Public and the owner
-            // later flipped it Private. We deliberately don't strip past
-            // access on visibility change (per the design decision).
             if (playlist.SavedByAccounts.Any(a => a.Id == uid))
                 return true;
 
-            // Unlisted: also allow users with a pending invitation to
-            // this playlist. They need to be able to preview before
-            // accepting; without this, an invitee would see "Playlist
-            // could not be found" when clicking their own inbox entry.
-            //
-            // For Private, no invitations exist (sharing requires
-            // Unlisted or Public), so this branch is unreachable for
-            // Private playlists in practice — guarded explicitly anyway
-            // so a future bug that creates a stray invitation row
-            // against a Private playlist can't accidentally widen
-            // visibility.
             if (playlist.Visibility == PlaylistVisibility.Unlisted &&
                 _context.PlaylistInvitations.Any(i =>
                     i.PlaylistId == playlist.Id && i.ReceiverId == uid))
@@ -340,7 +263,6 @@ namespace SongAppApi.Services
             return Guid.TryParse(value, out var g) ? g : (Guid?)null;
         }
 
-        // ---- Existing entity-level helpers (unchanged) ----
 
         public Playlist getPlaylist(string id)
         {

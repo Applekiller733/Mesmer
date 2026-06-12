@@ -245,10 +245,7 @@ namespace SongAppApi.Services
         public string? GetProfilePictureId(string id)
         {
             var account = getAccount(id);
-            //if ( account.ProfilePicture == null )
-            //    Console.WriteLine("ACCOUNT.PROFILEPICTURE IS NULL");
-            //Console.WriteLine(account.ProfilePicture);
-            //Console.WriteLine(account.ProfilePicture.Id);
+        
             if (account.ProfilePicture == null) return null;
             return account.ProfilePicture.Id.ToString();
         }
@@ -344,19 +341,17 @@ namespace SongAppApi.Services
 
             var trimmed = query.Trim();
 
-            // Try parsing as a friend code first. TryNormalize handles "ABC-XYZ",
-            // "abcxyz", and other surface variations.
+            // try parsing as a friend code first
+            // TryNormalize handles "ABC-XYZ", "abcxyz" etc
             var normalizedCode = FriendCodeGenerator.TryNormalize(trimmed);
 
             IQueryable<Account> q;
             if (normalizedCode != null)
             {
-                // Friend codes are exact match. The unique index makes this fast.
                 q = _context.Accounts.Where(a => a.FriendCode == normalizedCode);
             }
             else
             {
-                // Standard substring search.
                 var like = $"%{trimmed}%";
                 q = _context.Accounts.Where(a => EF.Functions.ILike(a.UserName, like));
             }

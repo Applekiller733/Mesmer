@@ -64,53 +64,51 @@ export default function Navbar() {
                     </Typography>
 
                     <Box className="navbar-links">
-                        <Button color="inherit" href="/">
+                        <Button color="inherit" className="navbar-button" href="/">
                             Home
                         </Button>
                         {loggedIn && (
-                            <Button color="inherit" href="/for-you">
+                            <Button color="inherit" className="navbar-button" href="/for-you">
                                 For You
                             </Button>
                         )}
                         {loggedIn && (
-                            <Button color="inherit" href="/library">
+                            <Button color="inherit" className="navbar-button" href="/library">
                                 Library
                             </Button>
                         )}
                         {loggedIn && (
-                            // Renamed from "Friends" to "Socials" to match
-                            // the two-tab layout (Friends + Playlists)
-                            // introduced in this step.
-                            <Button color="inherit" href="/socials">
+                            <Button color="inherit" className="navbar-button" href="/socials">
                                 Socials
                             </Button>
                         )}
                         {isAdmin && (
-                            <Button color="inherit" href="/admin">
+                            <Button color="inherit" className="navbar-button" href="/admin">
                                 Admin
                             </Button>
                         )}
                     </Box>
 
-                    {/* Logged-in-only: search + badge + polling. */}
+                    {/* logged-in-only: search + badge + polling. */}
                     {loggedIn && <LoggedInNavbarExtras />}
 
                     <Box className="navbar-auth">
                         {loggedIn !== true ? (
                             <>
-                                <Button color="primary" href="/login">
+                                <Button color="primary" className="navbar-button" href="/login">
                                     Login
                                 </Button>
                                 <Button
                                     variant="contained"
                                     color="secondary"
                                     href="/signup"
+                                    className="navbar-button"
                                 >
                                     Sign Up
                                 </Button>
                             </>
                         ) : (
-                            <Button color="error" onClick={handleLogout}>
+                            <Button color="error" className="navbar-button" onClick={handleLogout}>
                                 Logout
                             </Button>
                         )}
@@ -120,6 +118,7 @@ export default function Navbar() {
                         {loggedIn && (
                             <Button
                                 color="inherit"
+                                className="navbar-button"
                                 href={`/profile/${currentuser.id}`}
                             >
                                 Profile

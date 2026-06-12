@@ -32,7 +32,7 @@ export default function AdminDashboard() {
                         <AdminUserGrid></AdminUserGrid>
                     </Paper>
 
-                    <Paper className="user-list-paper" sx={{ mt: 3 }}>
+                    <Paper className="song-list-paper" sx={{ mt: 3 }}>
                         <Typography variant="h5" sx={{ p: 2 }}>Songs</Typography>
                         <AdminSongGrid></AdminSongGrid>
                         <Box sx={{ p: 2 }}>

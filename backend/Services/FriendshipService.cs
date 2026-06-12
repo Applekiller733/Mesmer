@@ -43,12 +43,8 @@ namespace SongAppApi.Services
             if (senderGuid == receiverGuid)
                 throw new AppException("You cannot send a friend request to yourself.");
 
-            // Confirm both users actually exist. Catches typos /
-            // crafted requests that would otherwise insert a row with
-            // dangling foreign-key intent.
             EnsureUserExists(receiverGuid, "The recipient does not exist.");
 
-            // Check for an existing row in either direction.
             var existing = FindAnyRow(senderGuid, receiverGuid);
             if (existing != null)
             {
@@ -58,25 +54,18 @@ namespace SongAppApi.Services
                         throw new AppException("You are already friends.");
 
                     case FriendshipStatus.Pending:
-                        // Two cases:
-                        //  - Sender already sent a request: idempotent, return it.
-                        //  - Receiver already sent a request to sender: tell
-                        //    them to accept rather than sending a new one.
+                        
                         if (existing.SenderId == senderGuid)
                             return _mapper.Map<FriendshipResponse>(existing);
                         throw new AppException(
                             "This user has already sent you a request. Accept it instead.");
 
                     case FriendshipStatus.Blocked:
-                        // Two sub-cases:
-                        //  - The sender did the blocking → fail with a clear error.
-                        //  - The receiver did the blocking → silent success
-                        //    (shadow block; don't reveal the block).
                         if (existing.SenderId == senderGuid)
                             throw new AppException(
                                 "You have blocked this user. Unblock them first.");
-                        // Receiver blocked the sender. Pretend the request
-                        // went through but don't actually create a row.
+                        
+                        // receiver blocked the sender
                         return new FriendshipResponse
                         {
                             SenderId = senderId,
@@ -108,7 +97,7 @@ namespace SongAppApi.Services
             var row = _context.Friendships.FirstOrDefault(f => f.Id == fGuid)
                       ?? throw new KeyNotFoundException("Friend request not found.");
 
-            // Authority: only the receiver can accept.
+            // only the receiver can accept
             if (row.ReceiverId != currentGuid)
                 throw new AppException("Only the request recipient can accept it.");
 
@@ -146,9 +135,6 @@ namespace SongAppApi.Services
         {
             var (a, b) = ParsePair(currentUserId, otherUserId);
 
-            // The friendship row could be in either direction. We don't
-            // care who originally sent the request — if we're friends,
-            // either party can dissolve it.
             var row = FindAnyRow(a, b);
             if (row == null || row.Status != FriendshipStatus.Accepted)
                 throw new AppException("You are not friends with this user.");
@@ -165,26 +151,20 @@ namespace SongAppApi.Services
                 throw new AppException("You cannot block yourself.");
 
             EnsureUserExists(blocked, "The user to block does not exist.");
-
-            // Remove ANY existing row between the two users — pending
-            // requests, accepted friendship, or a stale block in the other
-            // direction. Block is the highest-precedence state, so we
-            // wipe the slate before inserting.
+            
+            //find all existing rows between users
             var existing = _context.Friendships
                 .Where(f =>
                     (f.SenderId == blocker && f.ReceiverId == blocked) ||
                     (f.SenderId == blocked && f.ReceiverId == blocker))
                 .ToList();
 
-            // If the blocker already has a Blocked row in their direction,
-            // it's idempotent — return what's there.
             var alreadyBlockedByMe = existing.FirstOrDefault(f =>
                 f.SenderId == blocker && f.Status == FriendshipStatus.Blocked);
             if (alreadyBlockedByMe != null)
                 return _mapper.Map<FriendshipResponse>(alreadyBlockedByMe);
 
-            // Otherwise, remove all existing rows and insert the new
-            // Blocked row.
+            // remove all rows and insert a new Blocked row in the blocker to blocked dir
             _context.Friendships.RemoveRange(existing);
 
             var newBlock = new Friendship
@@ -214,14 +194,8 @@ namespace SongAppApi.Services
 
             _context.Friendships.Remove(row);
             _context.SaveChanges();
-
-            // Note: we intentionally do NOT restore any prior friendship.
-            // If A blocked B and now unblocks, B is just back to "stranger"
-            // — they'd have to re-send a friend request. This matches the
-            // expected behavior of every social platform.
         }
 
-        // -------------------- Queries --------------------
 
         public RelationshipStatusResponse GetRelationship(string currentUserId, string otherUserId)
         {
@@ -231,23 +205,11 @@ namespace SongAppApi.Services
             if (currentGuid == otherGuid)
                 return new RelationshipStatusResponse { IsSelf = true };
 
-            // From the current user's perspective, we want the LOGICAL
-            // relationship — including "I am the receiver of a pending
-            // request" — not just rows where they're the Sender. So
-            // we look for any row in either direction.
-            //
-            // Important: we must filter out rows where the OTHER user
-            // has blocked the current user. Returning Status=Blocked
-            // would reveal the block; we instead return null (= no
-            // relationship), making it look like a stranger.
             var row = FindAnyRow(currentGuid, otherGuid);
 
             if (row == null)
                 return new RelationshipStatusResponse();
 
-            // Shadow-block visibility rule. If the OTHER user is the
-            // sender of a Blocked row, current user shouldn't see the
-            // block — pretend no relationship exists.
             if (row.Status == FriendshipStatus.Blocked && row.SenderId == otherGuid)
                 return new RelationshipStatusResponse();
 
@@ -326,11 +288,6 @@ namespace SongAppApi.Services
 
         // helpers
 
-        /// <summary>
-        /// Parses two user IDs into Guids. Throws AppException with a
-        /// friendly message on parse failure rather than letting Guid.Parse
-        /// propagate FormatException.
-        /// </summary>
         private static (Guid, Guid) ParsePair(string first, string second)
         {
             return (ParseGuid(first, "first"), ParseGuid(second, "second"));
@@ -349,11 +306,6 @@ namespace SongAppApi.Services
                 throw new KeyNotFoundException(notFoundMessage);
         }
 
-        /// <summary>
-        /// Finds a Friendship row between two users in either direction.
-        /// Returns null if none exists. Used by all the
-        /// "is there any relationship" checks.
-        /// </summary>
         private Friendship? FindAnyRow(Guid a, Guid b)
         {
             return _context.Friendships.FirstOrDefault(f =>

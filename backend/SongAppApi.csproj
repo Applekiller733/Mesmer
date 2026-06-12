@@ -36,5 +36,12 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+	
+<ItemGroup>
+  <Compile Remove="SongAppApi.Tests/**/*.cs" />
+  <Content Remove="SongAppApi.Tests/**" />
+  <None Remove="SongAppApi.Tests/**" />
+  <EmbeddedResource Remove="SongAppApi.Tests/**" />
+</ItemGroup>
 
 </Project>

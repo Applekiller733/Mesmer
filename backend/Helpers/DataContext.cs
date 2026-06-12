@@ -99,19 +99,10 @@
 
             modelBuilder.Entity<Friendship>(entity =>
             {
-                // Two navigation properties (Sender, Receiver) both pointing at
-                // Account. EF Core can't infer which is which without explicit
-                // configuration, so we declare both relationships manually.
-                //
-                // OnDelete: Restrict prevents EF from auto-cascading Account
-                // deletions. If you delete a user account, you'd want to clean up
-                // their friendships explicitly in the deletion service rather
-                // than rely on cascade — gives you control over notifications,
-                // soft delete, etc.
+                
 
                 entity.HasOne(f => f.Sender)
-                    .WithMany()  // No back-navigation collection on Account; we
-                                 // can add it later if needed (e.g. account.SentFriendRequests)
+                    .WithMany()
                     .HasForeignKey(f => f.SenderId)
                     .OnDelete(DeleteBehavior.Restrict);
 
@@ -120,20 +111,11 @@
                     .HasForeignKey(f => f.ReceiverId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                // Unique constraint: at most one row per directional pair. This is
-                // also our primary index for "does a friendship row exist between
-                // these two users in this direction" lookups.
                 entity.HasIndex(f => new { f.SenderId, f.ReceiverId })
                     .IsUnique();
 
-                // Reverse-direction index. The most common query — "are A and B
-                // friends?" — needs to check both (A, B) and (B, A). Without this
-                // index, the (B, A) lookup falls back to a scan.
                 entity.HasIndex(f => new { f.ReceiverId, f.SenderId });
 
-                // Status index: speeds up "show me incoming Pending requests" and
-                // similar filters on a single user's edges. Composite with
-                // ReceiverId because that's the typical use ("MY incoming pending").
                 entity.HasIndex(f => new { f.ReceiverId, f.Status });
             });
 

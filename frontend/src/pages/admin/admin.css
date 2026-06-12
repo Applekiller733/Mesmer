@@ -16,3 +16,11 @@
   place-self: center;
   justify-content: center;
 }
+
+.song-list-paper{
+  align-self: center;
+  grid-column:2;
+  grid-row: 3;
+  place-self: center;
+  justify-content: center;
+}

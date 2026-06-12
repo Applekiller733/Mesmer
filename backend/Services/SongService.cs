@@ -55,17 +55,12 @@ namespace SongAppApi.Services
 
         public SongResponse Create(CreateSongRequest request, Account creator)
         {
-            // Map metadata fields only. SoundFile is intentionally not in AutoMapper.
             var song = _mapper.Map<Song>(request);
             song.CreatedBy = creator;
             song.CreatedAt = DateTime.UtcNow;
             song.Upvotes = 0;
 
-            // If an audio file was uploaded, persist it and link it.
-            // The SoundUrl field on the response will be populated post-save
-            // by the controller (which knows the route), or you can build it
-            // here from a known route prefix — we leave it null and let the
-            // mapper / controller fill it in.
+            // handle file upload if present
             if (request.SoundFile != null && request.SoundFile.Length > 0)
             {
                 var file = _fileService.CreateFromFormFile(
@@ -74,8 +69,7 @@ namespace SongAppApi.Services
                     category: FileCategory.Audio);
 
                 song.SoundId = file.Id;
-                // Clear any external URL the client also sent — the uploaded
-                // file is the source of truth and we don't want both set.
+                // clear any urls since we're using uploaded files
                 song.SoundUrl = null;
             }
 

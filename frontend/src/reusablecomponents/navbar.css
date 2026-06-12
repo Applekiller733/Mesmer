@@ -2,11 +2,15 @@
 .navbar{
     max-height:5rem;
     display: flex;
+    /* align-items: center; */
     justify-content: flex-start;
+    /* line-height: 1; */
+    /* justify-content: space-between; */
 }
 
 .navbar-title{
-
+    padding:1rem;
+    align-self: center;
 }
 
 .navbar-auth{
@@ -16,4 +20,9 @@
 .navbar-profile{
     align-self:center;
     margin-left: auto;
+}
+
+.navbar-button{
+    padding:0.5rem;
+    padding-bottom: 0rem;
 }
