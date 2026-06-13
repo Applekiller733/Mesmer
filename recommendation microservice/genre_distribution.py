@@ -1,12 +1,3 @@
-"""
-Counts songs per genre and generates a horizontal bar chart.
-
-Outputs:
-  - A printed table to stdout (sortable, easy to copy)
-  - genre_distribution.pdf for \\includegraphics in the thesis
-  - genre_distribution.png for quick previewing
-"""
-
 import matplotlib.pyplot as plt
 import numpy as np
 

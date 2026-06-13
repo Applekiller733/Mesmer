@@ -10,7 +10,7 @@ from feature_extraction_librosa import (
     ENRICHMENT_SOURCE_TAG,
 )
 
-# Must match backend/Entities/EnrichmentStatus.cs
+# must match backend EnrichmentStatus.cs
 STATUS_PENDING = 0
 STATUS_ENRICHED_ACOUSTICBRAINZ = 1
 STATUS_ENRICHED_LIBROSA = 2
@@ -33,21 +33,12 @@ def setup_logging(verbose: bool):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    # Silence the chatty libraries that Librosa pulls in. WARNING level
-    # means we still see real problems (e.g. file decode failures from
-    # audioread) but lose the routine startup/info messages.
     for noisy in ("numba", "matplotlib", "audioread", "soundfile",
                   "urllib3", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    # Suppress librosa's own deprecation/runtime warnings — most are
-    # about minor API drift between versions of its deps and not
-    # actionable on our side.
     warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
     warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
-    # Numpy's "Mean of empty slice" etc. warnings can fire on edge-case
-    # audio files; we already handle those by returning None from the
-    # extractor.
     warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 
 def enrich_failed_songs_with_audio(

@@ -26,9 +26,7 @@ def setup_logging(verbose: bool):
     )
 
 
-# ---- Stage A: resolve MBIDs for songs that don't have one yet --------------
-
-
+# find MBIDs for songs that don't have them yet, and mark songs with no match as Failed
 def resolve_mbids_for_pending_songs(limit: int = DB_BATCH_SIZE) -> int:
     """
     Iterate songs that need MBID resolution. Sets MusicBrainzId on each.
@@ -92,9 +90,7 @@ def resolve_mbids_for_pending_songs(limit: int = DB_BATCH_SIZE) -> int:
     return updated
 
 
-# ---- Stage B: fetch AcousticBrainz data for songs with known MBIDs ---------
-
-
+# For songs with MBIDs, fetch AcousticBrainz lowlevel data and extract features.
 def enrich_features_for_resolved_songs(
     limit: int = DB_BATCH_SIZE,
     reanalyze: bool = False,
@@ -200,8 +196,6 @@ def enrich_features_for_resolved_songs(
 
     return enriched
 
-
-# ---- Entry point ------------------------------------------------------------
 
 
 def main():

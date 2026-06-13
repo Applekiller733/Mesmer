@@ -14,8 +14,8 @@ from psycopg2.extras import execute_values
 from db import get_connection
 from feature_schema import FEATURE_COUNT, PCA_COMPONENTS, SCHEMA_VERSION
 
-# Schema-versioned artefact names so old (22-feature) files are never
-# accidentally loaded against the new (40-feature) pipeline.
+# schema-versioned artefact names so old files are never
+# accidentally loaded against the newer pipeline.
 SCALER_PATH = f"scaler_schema{SCHEMA_VERSION}.pkl"
 PCA_PATH = f"pca_schema{SCHEMA_VERSION}.pkl"
 
@@ -35,9 +35,9 @@ def setup_logging(verbose: bool):
     warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
 
 
-# ---- DB I/O -----------------------------------------------------------------
 
 
+# db
 def load_all_raw_features() -> Tuple[List[str], np.ndarray]:
     """
     Load every song's RawFeatures. Returns (song_ids, features_matrix)
@@ -134,8 +134,8 @@ def write_pca_features(rows: List[Tuple[str, List[float]]]) -> int:
     return written
 
 
-# ---- Fit / transform --------------------------------------------------------
 
+#fit & transform
 
 def fit_scaler_and_optional_pca(
     features: np.ndarray,
@@ -244,7 +244,7 @@ def load_models() -> Tuple[StandardScaler, Optional[PCA]]:
     return scaler, pca
 
 
-# ---- Modes ------------------------------------------------------------------
+# 2 run modes
 
 
 def run_fit_mode(n_components: Optional[int]):

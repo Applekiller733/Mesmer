@@ -28,7 +28,7 @@ def main():
     ax1.tick_params(axis="y", labelcolor=bar_color)
     ax1.set_xticks(x)
 
-    # Second axis: cumulative curve.
+    # cumulative curve
     ax2 = ax1.twinx()
     line_color = "#c0392b"
     ax2.plot(
@@ -39,13 +39,13 @@ def main():
     ax2.tick_params(axis="y", labelcolor=line_color)
     ax2.set_ylim(0, 105)
 
-    # Reference lines.
+    # 85-95 ref lines
     ax2.axhline(85, linestyle="--", color="gray", linewidth=0.8, alpha=0.6)
     ax2.axhline(95, linestyle="--", color="gray", linewidth=0.8, alpha=0.6)
     ax2.text(n + 0.1, 85, " 85%", va="center", fontsize=8, color="gray")
     ax2.text(n + 0.1, 95, " 95%", va="center", fontsize=8, color="gray")
 
-    # Annotate the final cumulative value.
+    # annotate the final cumulative value
     final = cumulative[-1]
     ax2.annotate(
         f"{final:.1f}%",

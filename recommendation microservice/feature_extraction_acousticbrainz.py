@@ -27,23 +27,19 @@ def extract_features_from_acousticbrainz(doc: dict) -> Optional[List[float]]:
             return float(node["mean"])
 
         def _std(node) -> float:
-            # AcousticBrainz exposes var; we want std.
             return math.sqrt(float(node["var"]))
 
         mfcc_means = lowlevel["mfcc"]["mean"]
         if len(mfcc_means) < 13:
             return None
 
-        # HPCP is Essentia's Harmonic Pitch Class Profile — the direct
-        # equivalent of librosa.feature.chroma. 12 bins, one per pitch
-        # class.
+        # hpcp is the chroma feature in AcousticBrainz, but it doesn't have the same
+        # normalization as the chroma in Librosa, so we can't just take the first 12 values as chroma means
+        # instead, we take the mean of each pitch class across all octaves
         hpcp_means = tonal["hpcp"]["mean"]
         if len(hpcp_means) < 12:
             return None
 
-        # Essentia's SpectralContrast defaults to 6 bands. Librosa is
-        # configured with n_bands=5 (which outputs 6 rows) so the two
-        # extractors produce comparable 6-element vectors.
         sc_means = lowlevel["spectral_contrast_coeffs"]["mean"]
         if len(sc_means) < 6:
             return None
@@ -63,11 +59,9 @@ def extract_features_from_acousticbrainz(doc: dict) -> Optional[List[float]]:
             *[float(sc_means[i]) for i in range(6)],
         ]
     except (KeyError, TypeError, ValueError):
-        # Any missing field, type mismatch, or unparseable value.
         return None
 
     if len(features) != FEATURE_COUNT:
-        # Defensive: would be a code bug, not a data issue.
         raise RuntimeError(
             f"Feature extractor produced {len(features)} values, "
             f"schema expects {FEATURE_COUNT}. Update both together."
@@ -79,8 +73,7 @@ def extract_features_from_acousticbrainz(doc: dict) -> Optional[List[float]]:
     return features
 
 
-# Self-documentation: lets a developer eyeball that the source paths
-# match the canonical FEATURE_NAMES order. Update both together.
+# doc strings for each feature, same order as FEATURE_NAMES
 FEATURE_SOURCE_PATHS = [
     "rhythm.bpm",
     "lowlevel.average_loudness",

@@ -8,23 +8,9 @@ from db import get_connection
 
 logger = logging.getLogger(__name__)
 
-# RRF k constant from Cormack, Clarke, and Buettcher (SIGIR 2009).
-# Small values concentrate weight on top positions; large values
-# flatten the curve. 60 is the canonical default in the IR literature.
 RRF_K = 60
-
-# How many neighbors to fetch per playlist song before fusion. Should
-# be several times larger than the final top_k so RRF has enough
-# overlap to surface songs that appear across multiple lists.
 DEFAULT_CANDIDATES_PER_SONG = 30
-
-# Genre integer 0 means "Unknown" (matches the C# Genre enum). Songs
-# with genre 0 contribute nothing to the playlist's genre distribution
-# and don't receive a genre boost as candidates either.
 GENRE_UNKNOWN = 0
-
-
-# ---- DB I/O ----------------------------------------------------------------
 
 
 def load_playlist_song_metadata(
@@ -116,8 +102,7 @@ def fetch_top_similar_songs(
     return [str(row[0]) for row in rows]
 
 
-# ---- Internals: per-signal scoring -----------------------------------------
-
+#rrf helpers
 
 def _acoustic_rrf_scores(
     playlist_song_vectors: List[Tuple[str, np.ndarray]],
@@ -171,23 +156,18 @@ def recommend_for_playlist(
     Hybrid recommendation: fuses two ranked lists via Reciprocal Rank
     Fusion.
 
-      1. **Acoustic ranking** — per-song nearest-neighbor queries on
-         PcaFeatures, fused via RRF (one inner fusion across playlist
-         members, one outer fusion against the genre ranking).
-      2. **Genre ranking** — the same candidate pool, re-ranked by how
-         strongly each candidate's genre matches the playlist's genre
-         distribution.
+    Acoustic ranking— per-song nearest-neighbor queries on
+        PcaFeatures, fused via RRF (one inner fusion across playlist
+        members, one outer fusion against the genre ranking).
+    Genre ranking — the same candidate pool, re-ranked by how
+        strongly each candidate's genre matches the playlist's genre
+        distribution.
 
     The two rankings are merged with a second RRF pass. The fusion is
     symmetric: a candidate that's strong on acoustic similarity but
     off-genre still surfaces if it's strong enough; a candidate
     perfectly on-genre still has to be acoustically plausible to make
     the cut.
-
-    Falls back to acoustic-only when the playlist has no labelled
-    songs (everything is Unknown) — in that case there's nothing to
-    fuse against, and silently producing a 50/50 mix of acoustic +
-    arbitrary-genre-rank would be worse than just the acoustic signal.
 
     Returns an empty list when no playlist song has PcaFeatures.
     """
@@ -202,7 +182,7 @@ def recommend_for_playlist(
         )
         return []
 
-    # Acoustic ranking (stage 1).
+    #acoustic ranking
     playlist_vectors = [(sid, vec) for sid, vec, _ in playlist_meta]
     acoustic_scores = _acoustic_rrf_scores(
         playlist_song_vectors=playlist_vectors,
@@ -213,17 +193,15 @@ def recommend_for_playlist(
     if not acoustic_scores:
         return []
 
-    # Genre distribution over the playlist.
     playlist_genres = [genre for _, _, genre in playlist_meta]
     genre_dist = _playlist_genre_distribution(playlist_genres)
 
     if not genre_dist:
-        # No labelled songs — acoustic-only.
         logger.debug("Playlist has no labelled genres; acoustic-only fallback.")
         ranked = sorted(acoustic_scores.items(), key=lambda x: x[1], reverse=True)
         return [nid for nid, _ in ranked[:top_k]]
 
-    # Genre ranking over the acoustic candidate pool.
+    # genre rank 
     candidate_ids = list(acoustic_scores.keys())
     candidate_genres = load_candidate_genres(candidate_ids)
 
@@ -232,10 +210,6 @@ def recommend_for_playlist(
         for cid in candidate_ids
     }
 
-    # Rank the candidates by each signal (descending), then fuse the
-    # two rankings with another RRF pass. Ties in genre score are
-    # broken by acoustic score so that on-genre candidates with better
-    # acoustic similarity rise to the top of the genre list.
     acoustic_ranking = sorted(
         candidate_ids,
         key=lambda c: acoustic_scores[c],
@@ -247,6 +221,7 @@ def recommend_for_playlist(
         reverse=True,
     )
 
+    #second rrf fuse
     fused: Dict[str, float] = defaultdict(float)
     for rank, cid in enumerate(acoustic_ranking):
         fused[cid] += 1.0 / (RRF_K + rank + 1)
@@ -257,7 +232,7 @@ def recommend_for_playlist(
     return [cid for cid, _ in ranked[:top_k]]
 
 
-# ---- Ablation variants: kept for thesis evaluation -------------------------
+# helpers for eval
 
 
 def recommend_for_playlist_acoustic_only(

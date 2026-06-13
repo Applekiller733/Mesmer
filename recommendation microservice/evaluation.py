@@ -304,7 +304,7 @@ def main():
     rng_rec = random_recommender(catalogue_ids)
     variants_with_random = VARIANTS + [("Random baseline", rng_rec)]
 
-    # Genre relevance
+    # genre relevance
     print("Setup A: Genre relevance")
     print("-" * 60)
     results_a: Dict[str, MetricResult] = {}
@@ -322,7 +322,7 @@ def main():
     if args.csv:
         write_csv(args.csv, "genre_relevance", args.top_k, results_a, append=False)
 
-    # Leave one out
+    # leave one out
     if not args.skip_loo:
         print("Setup B: Leave-one-out")
         print("-" * 60)

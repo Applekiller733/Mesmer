@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict
 from db import get_connection
 from recommendation_logic import recommend_for_playlist
 
-# Logging setup. App-level INFO, libraries quieted.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -19,19 +18,11 @@ logger = logging.getLogger("api")
 
 app = FastAPI(title="Recommendation Service")
 
-# Default top-K. Matches the previous DSSM API's default so the .NET
-# caller behaves identically without changing.
 DEFAULT_TOP_K = 5
 
-
-# ---- DTOs (preserve previous shapes for compat) ---------------------------
-
-
+# DTOs
 class SongRecommendationDTO(BaseModel):
     # populate_by_name=True: accept either "id" or "Id" on input.
-    # alias_generator: when serializing OUT, fields with no explicit
-    # alias get camelCased. Doesn't matter for our outputs, but it's
-    # the standard pairing.
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -50,8 +41,6 @@ class PlaylistRecommendationDTO(BaseModel):
 class RecommendationResponse(BaseModel):
     recommendedIds: List[str]
 
-
-# ---- Endpoints -------------------------------------------------------------
 
 
 @app.post("/recommend-ids", response_model=RecommendationResponse)
@@ -79,8 +68,6 @@ async def get_recommendation_ids(request: PlaylistRecommendationDTO):
         )
 
         if not recommended:
-            # Could be because no input songs are enriched, or because
-            # there are no other enriched songs in the catalog yet.
             logger.info(
                 "No recommendations for playlist %s (input songs: %d). "
                 "Most likely cause: input songs not yet enriched. Run "
@@ -91,8 +78,7 @@ async def get_recommendation_ids(request: PlaylistRecommendationDTO):
         return RecommendationResponse(recommendedIds=recommended)
 
     except Exception as e:
-        # Catch-all so unexpected errors return a clean 500 rather than
-        # leaking stack traces to the .NET caller.
+        
         logger.exception("Recommendation failed for playlist %s: %s",
                          request.id, e)
         raise HTTPException(status_code=500, detail="Internal processing error.")
