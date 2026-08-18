@@ -368,6 +368,7 @@ FodyWeavers.xsd
 appsettings.json
 
 .env
+.env copy
 
 Migrations/*
 Migrations\*
