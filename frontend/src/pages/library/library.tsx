@@ -30,13 +30,8 @@ export default function Library() {
     const playlists = useSelector(selectSavedPlaylists);
     const loadedPlaylist = useSelector(selectLoadedPlaylist);
 
-    // Read URL search params so external links can deep-link into a subpage.
-    // Currently supported: ?action=create → opens create-playlist subpage.
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Initial subpage chosen from the URL on first render. Subsequent
-    // navigation between subpages is still controlled by local state, so
-    // we don't keep rewriting the URL for every internal click.
     const initialPage =
         searchParams.get("action") === "create"
             ? LibraryPages.createplaylist
@@ -49,9 +44,7 @@ export default function Library() {
         if (user.id) dispatch(fetchPlaylistsSavedByAccountId(user.id));
     }, [user, dispatch]);
 
-    // After consuming the ?action= param once, clear it from the URL so
-    // refreshing the page or sharing the URL doesn't keep re-opening the
-    // create page after the user has navigated elsewhere.
+    
     useEffect(() => {
         if (searchParams.get("action")) {
             const next = new URLSearchParams(searchParams);

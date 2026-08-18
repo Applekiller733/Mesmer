@@ -1,31 +1,3 @@
-"""
-Recommendation evaluation.
-
-Runs the three recommend_for_playlist variants against the live
-catalogue and reports Precision@K, Hit Rate@K, MRR, and Genre
-Consistency under two evaluation setups:
-
-  Setup A — Genre relevance
-    Each playlist with at least one labelled song is a query. A
-    recommendation is "relevant" if its Genre matches the playlist's
-    dominant genre (modal). Captures the genre-coherence question.
-
-  Setup B — Leave-one-out
-    For each (playlist, song) pair where the playlist has >= 2 songs,
-    hide that song and query with the remaining ones. The hidden song
-    is the single relevant item. Captures the "would the system have
-    predicted this song belongs in this playlist?" question.
-
-A random baseline is included for both setups so the absolute numbers
-have something to be compared against.
-
-Outputs a markdown table to stdout and a CSV file for further analysis.
-
-Run:
-    python evaluation.py
-    python evaluation.py --top-k 10 --csv results.csv
-"""
-
 import argparse
 import csv
 import logging
@@ -54,12 +26,8 @@ class Playlist:
 
 
 def load_playlists() -> List[Playlist]:
-    """
-    Load every playlist with its song list and per-song genre labels.
-    The exact join-table name in the schema is "PlaylistSong" (EF Core
-    convention for many-to-many). Adjust if your snapshot uses a
-    different name.
-    """
+    #load everything from the database, including playlists, songs, and genres
+    
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -210,11 +178,7 @@ def evaluate_leave_one_out(
 
 
 def random_recommender(catalogue_ids: List[str]):
-    """
-    Returns a recommender callable that picks K random songs from the
-    catalogue, excluding the playlist's own songs. Used to establish
-    the floor that real recommenders must clear.
-    """
+    # returns recommender that randomly picks songs
     rng = random.Random(42)
 
     def _recommend(playlist_song_ids: List[str], top_k: int) -> List[str]:
@@ -230,7 +194,7 @@ def random_recommender(catalogue_ids: List[str]):
 VARIANTS: List[Tuple[str, Callable]] = [
     ("Hybrid (acoustic + genre RRF)", recommend_for_playlist),
     ("Acoustic-only RRF", recommend_for_playlist_acoustic_only),
-    ("Centroid (legacy)", recommend_for_playlist_centroid),
+    ("Centroid", recommend_for_playlist_centroid),
 ]
 
 

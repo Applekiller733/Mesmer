@@ -20,22 +20,8 @@ musicbrainzngs.set_rate_limit(limit_or_interval=1.0, new_requests=1)
 def search_recording_mbid(
     name: str, artist: str, max_retries: int = 3
 ) -> Optional[str]:
-    """
-    Look up a MusicBrainz recording MBID by song name + artist name.
-
-    Returns the MBID of the top-ranked match, or None if no result. The
-    "top-ranked" choice is what MusicBrainz's relevance scoring picks —
-    we trust their scoring rather than implementing our own.
-
-    Why no fuzzy threshold? MusicBrainz's score is already a fuzzy match
-    quality (0-100). For names with typos or extra punctuation, the top
-    hit is usually still the right recording. We accept it and move on.
-    Errors propagate to the enricher which marks the song as Failed.
-
-    On 503 (rate limited despite our 1s spacing), retry with exponential
-    backoff up to max_retries times. Other errors return None and let
-    the caller decide what to do.
-    """
+    
+    #try to get mbid based on song name si artist
     for attempt in range(max_retries):
         try:
             query = f'recording:"{name}" AND artist:"{artist}"'
@@ -50,7 +36,7 @@ def search_recording_mbid(
             time.sleep(wait)
             continue
         except musicbrainzngs.WebServiceError as e:
-            # 4xx-level errors that aren't transient. No point retrying.
+            # 4xx-level errors no point retrying.
             logger.warning(
                 "MusicBrainz web service error for %s by %s: %s",
                 name, artist, e,

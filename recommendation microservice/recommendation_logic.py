@@ -16,14 +16,7 @@ GENRE_UNKNOWN = 0
 def load_playlist_song_metadata(
     song_ids: List[str],
 ) -> List[Tuple[str, np.ndarray, int]]:
-    """
-    Load (song_id, PcaFeatures, Genre) for the given playlist in one
-    query. Songs without PcaFeatures are silently omitted — they can't
-    contribute to per-song neighbor retrieval. Their Genre would
-    still be useful for the genre distribution, but in practice the
-    same un-enriched songs are usually un-labelled too, so the trade
-    is acceptable for now.
-    """
+    
     if not song_ids:
         return []
 
@@ -74,14 +67,7 @@ def fetch_top_similar_songs(
     top_k: int,
     exclude_ids: Optional[List[str]] = None,
 ) -> List[str]:
-    """
-    Cosine-similarity search against the Songs table, returning the
-    top_k nearest IDs.
-
-    pgvector's <=> operator computes cosine DISTANCE (smaller = more
-    similar), which matches ORDER BY ASC. Songs without PcaFeatures are
-    excluded by the IS NOT NULL filter.
-    """
+    
     exclude = list(exclude_ids) if exclude_ids else []
 
     with get_connection() as conn:
@@ -109,10 +95,7 @@ def _acoustic_rrf_scores(
     exclude_ids: List[str],
     candidates_per_song: int,
 ) -> Dict[str, float]:
-    """
-    Run a per-song nearest-neighbor query for each playlist song and
-    fuse the resulting ranked lists via RRF. Returns {song_id: score}.
-    """
+    
     scores: Dict[str, float] = defaultdict(float)
     exclude_set = set(exclude_ids)
 
@@ -131,12 +114,7 @@ def _acoustic_rrf_scores(
 
 
 def _playlist_genre_distribution(genres: List[int]) -> Dict[int, float]:
-    """
-    Build a normalized distribution over genre labels for the playlist,
-    skipping Unknown. Returns {genre_int: share}, where share sums to
-    1.0 across known-genre songs. Empty dict if the playlist has no
-    labelled songs.
-    """
+    # face distribution pt fiecare genre din playlist, total = 1
     counter = Counter(g for g in genres if g != GENRE_UNKNOWN)
     total = sum(counter.values())
     if total == 0:
@@ -144,7 +122,6 @@ def _playlist_genre_distribution(genres: List[int]) -> Dict[int, float]:
     return {g: c / total for g, c in counter.items()}
 
 
-# ---- Public API: RRF over acoustic + genre signals -------------------------
 
 
 def recommend_for_playlist(
@@ -152,25 +129,7 @@ def recommend_for_playlist(
     top_k: int = 5,
     candidates_per_song: int = DEFAULT_CANDIDATES_PER_SONG,
 ) -> List[str]:
-    """
-    Hybrid recommendation: fuses two ranked lists via Reciprocal Rank
-    Fusion.
-
-    Acoustic ranking— per-song nearest-neighbor queries on
-        PcaFeatures, fused via RRF (one inner fusion across playlist
-        members, one outer fusion against the genre ranking).
-    Genre ranking — the same candidate pool, re-ranked by how
-        strongly each candidate's genre matches the playlist's genre
-        distribution.
-
-    The two rankings are merged with a second RRF pass. The fusion is
-    symmetric: a candidate that's strong on acoustic similarity but
-    off-genre still surfaces if it's strong enough; a candidate
-    perfectly on-genre still has to be acoustically plausible to make
-    the cut.
-
-    Returns an empty list when no playlist song has PcaFeatures.
-    """
+    
     if not song_ids:
         return []
 
@@ -232,7 +191,7 @@ def recommend_for_playlist(
     return [cid for cid, _ in ranked[:top_k]]
 
 
-# helpers for eval
+# helperi pt eval
 
 
 def recommend_for_playlist_acoustic_only(
@@ -240,10 +199,7 @@ def recommend_for_playlist_acoustic_only(
     top_k: int = 5,
     candidates_per_song: int = DEFAULT_CANDIDATES_PER_SONG,
 ) -> List[str]:
-    """
-    Per-song RRF without the genre layer. Used as the "no genre"
-    baseline in the ablation table.
-    """
+    # rrf fara genres
     if not song_ids:
         return []
 
@@ -266,10 +222,7 @@ def recommend_for_playlist_acoustic_only(
 
 
 def compute_playlist_vector(song_ids: List[str]) -> Optional[np.ndarray]:
-    """
-    Legacy centroid query vector — averages the PCA features of every
-    enriched playlist song. Retained for the centroid baseline.
-    """
+    # avg la playlist vector pt varianta veche
     pairs = load_playlist_song_metadata(song_ids)
     if not pairs:
         return None
@@ -281,10 +234,7 @@ def compute_playlist_vector(song_ids: List[str]) -> Optional[np.ndarray]:
 def recommend_for_playlist_centroid(
     song_ids: List[str], top_k: int = 5,
 ) -> List[str]:
-    """
-    Original centroid-based recommendation. Used as the
-    "no-fusion-at-all" baseline in the ablation table.
-    """
+    #recomandarea veche
     vector = compute_playlist_vector(song_ids)
     if vector is None:
         return []

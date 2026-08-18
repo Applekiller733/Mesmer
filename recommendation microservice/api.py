@@ -22,7 +22,7 @@ DEFAULT_TOP_K = 5
 
 # DTOs
 class SongRecommendationDTO(BaseModel):
-    # populate_by_name=True: accept either "id" or "Id" on input.
+    # populate_by_name=True: accepta "id" sau "Id" on input.
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -45,19 +45,10 @@ class RecommendationResponse(BaseModel):
 
 @app.post("/recommend-ids", response_model=RecommendationResponse)
 async def get_recommendation_ids(request: PlaylistRecommendationDTO):
-    """
-    Given a playlist (id + list of songs), return up to DEFAULT_TOP_K
-    recommended song IDs based on cosine similarity in PCA-reduced
-    feature space.
 
-    Behavior:
-      - Empty playlist → 200 with empty list.
-      - All input songs un-enriched → 200 with empty list (logs a hint).
-      - DB unreachable / unexpected error → 500.
-    """
     try:
         if not request.songs:
-            logger.info("Empty playlist for %s; returning no recommendations.",
+            logger.info("Empty playlist for %s, returning no recommendations.",
                         request.id)
             return RecommendationResponse(recommendedIds=[])
 
@@ -86,11 +77,6 @@ async def get_recommendation_ids(request: PlaylistRecommendationDTO):
 
 @app.get("/health")
 async def health():
-    """
-    Liveness + readiness check. Returns DB connectivity and how many
-    songs are currently recommendable (have PcaFeatures populated).
-    A 200 here means the service can answer recommendation requests.
-    """
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:

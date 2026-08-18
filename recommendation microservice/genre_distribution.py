@@ -25,7 +25,7 @@ GENRE_NAMES = [
 
 
 def load_genre_counts() -> dict[int, int]:
-    """Returns {genre_int: count} for the full catalogue."""
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -41,9 +41,7 @@ def load_genre_counts() -> dict[int, int]:
 
 
 def load_enriched_counts() -> dict[int, int]:
-    """Genre counts restricted to enriched (recommendable) songs.
-    Useful for understanding what proportion of each genre actually
-    contributes to recommendations."""
+    
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -83,9 +81,7 @@ def print_table(total: dict[int, int], enriched: dict[int, int]) -> None:
 
 
 def plot_distribution(total: dict[int, int], enriched: dict[int, int]) -> None:
-    """Horizontal bar chart, sorted by total count. Each genre gets
-    two bars side by side: total catalogue count and enriched count."""
-
+    
     sorted_genres = sorted(total.keys(), key=lambda g: total[g])
 
     names = [
@@ -108,7 +104,7 @@ def plot_distribution(total: dict[int, int], enriched: dict[int, int]) -> None:
     ax.barh(y + bar_height / 2, enriched_counts, bar_height,
             color=enriched_color, label="Enriched (recommendable)", alpha=0.9)
 
-    #annotare la fiecare bara
+    #annotation la fiecare bara
     max_count = max(totals) if totals else 1
     offset = max_count * 0.01
     for i, (t, e) in enumerate(zip(totals, enriched_counts)):

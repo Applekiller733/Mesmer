@@ -14,8 +14,6 @@ from psycopg2.extras import execute_values
 from db import get_connection
 from feature_schema import FEATURE_COUNT, PCA_COMPONENTS, SCHEMA_VERSION
 
-# schema-versioned artefact names so old files are never
-# accidentally loaded against the newer pipeline.
 SCALER_PATH = f"scaler_schema{SCHEMA_VERSION}.pkl"
 PCA_PATH = f"pca_schema{SCHEMA_VERSION}.pkl"
 
@@ -39,10 +37,7 @@ def setup_logging(verbose: bool):
 
 # db
 def load_all_raw_features() -> Tuple[List[str], np.ndarray]:
-    """
-    Load every song's RawFeatures. Returns (song_ids, features_matrix)
-    where features_matrix has shape (n_songs, FEATURE_COUNT).
-    """
+    
     log = logging.getLogger("load")
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -74,11 +69,7 @@ def load_all_raw_features() -> Tuple[List[str], np.ndarray]:
 
 
 def load_untransformed_raw_features() -> Tuple[List[str], np.ndarray]:
-    """
-    Like load_all_raw_features, but only returns rows where PcaFeatures
-    is still NULL. Used by the transform-only mode so we don't waste
-    work re-transforming already-done rows.
-    """
+    # load songs that have RawFeatures but no PcaFeatures yet, returns (song_ids, features_matrix)
     log = logging.getLogger("load")
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -105,11 +96,7 @@ def load_untransformed_raw_features() -> Tuple[List[str], np.ndarray]:
 
 
 def write_pca_features(rows: List[Tuple[str, List[float]]]) -> int:
-    """
-    Bulk-update PcaFeatures for the given (song_id, vector) pairs.
-    Vectors are always FEATURE_COUNT-dimensional — see transform_to_storage_space
-    for the padding rationale.
-    """
+    
     if not rows:
         return 0
 
@@ -141,11 +128,7 @@ def fit_scaler_and_optional_pca(
     features: np.ndarray,
     n_components: Optional[int],
 ) -> Tuple[StandardScaler, Optional[PCA]]:
-    """
-    Fit a StandardScaler on (n_songs, FEATURE_COUNT). If n_components
-    is set and < FEATURE_COUNT, also fit a PCA. None means no PCA —
-    only standardisation is applied.
-    """
+    
     log = logging.getLogger("fit")
 
     if features.shape[0] < FEATURE_COUNT:
@@ -189,16 +172,7 @@ def transform_to_storage_space(
     scaler: StandardScaler,
     pca: Optional[PCA],
 ) -> np.ndarray:
-    """
-    Apply scaler (and PCA if provided), then pad to FEATURE_COUNT dims.
-
-    Why pad? The PcaFeatures column is declared as vector(FEATURE_COUNT)
-    so the same column accommodates both PCA-reduced and no-PCA modes
-    without a schema migration. Padding with trailing zeros does NOT
-    affect cosine similarity rankings: the dot product is unchanged
-    (zeros contribute zero), and the magnitudes are unchanged (zeros
-    don't increase |v|), so cosine(A_padded, B_padded) == cosine(A, B).
-    """
+    
     scaled = scaler.transform(features)
 
     if pca is None:
@@ -217,8 +191,6 @@ def transform_to_storage_space(
 
 
 def save_models(scaler: StandardScaler, pca: Optional[PCA]):
-    """Persist scaler and (optional) PCA. Removes stale PCA file when
-    switching from PCA mode to no-PCA mode."""
     log = logging.getLogger("fit")
     log.info("Saving scaler -> %s", SCALER_PATH)
     joblib.dump(scaler, SCALER_PATH)
@@ -233,18 +205,15 @@ def save_models(scaler: StandardScaler, pca: Optional[PCA]):
 
 
 def load_models() -> Tuple[StandardScaler, Optional[PCA]]:
-    """Load scaler (required) and PCA (optional)."""
     if not os.path.exists(SCALER_PATH):
         raise FileNotFoundError(
             f"Missing {SCALER_PATH}. Run with --fit first to train the "
-            "scaler on your enriched data."
+            "scaler on enriched data."
         )
     scaler = joblib.load(SCALER_PATH)
     pca = joblib.load(PCA_PATH) if os.path.exists(PCA_PATH) else None
     return scaler, pca
 
-
-# 2 run modes
 
 
 def run_fit_mode(n_components: Optional[int]):

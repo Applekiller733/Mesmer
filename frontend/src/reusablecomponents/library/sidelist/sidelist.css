@@ -1,0 +1,25 @@
+.sidelist-root {
+    width: 100%;
+}
+
+.sidelist-list {
+    width: 100%;
+}
+
+.sidelist-item {
+    width: 100%;
+}
+
+.sidelist-item-button {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    text-transform: none;
+    display: block;
+    justify-content: stretch;
+}
+
+.sidelist-create-button {
+    width: 100%;
+    margin-top: 8px;
+}

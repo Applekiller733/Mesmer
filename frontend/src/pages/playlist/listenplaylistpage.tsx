@@ -36,19 +36,12 @@ export default function ListenPlaylistPage() {
             <Box sx={{ minHeight: "100vh", backgroundColor: "#121212" }}>
                 <Navbar />
 
-                {/*
-                  Back-to-view affordance. Floats top-left under the
-                  navbar so the carousel layout below stays untouched.
-                  Uses navigate rather than href so the loaded-playlist
-                  slice stays warm — bouncing between view and listen
-                  doesn't trigger a full page reload.
-                */}
                 {status === "ready" && playlistId && (
                     <Box sx={{ px: 2, pt: 1 }}>
                         <Tooltip title="Back to playlist details" arrow>
                             <IconButton
                                 onClick={() => navigate(`/playlist/${playlistId}`)}
-                                color="white"
+                                color="inherit"
                             >
                                 <ArrowBackIcon className="back-arrow"/>
                             </IconButton>

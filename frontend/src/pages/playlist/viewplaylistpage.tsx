@@ -15,24 +15,6 @@ import {
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../../stores/slices/userdataslice";
 
-/**
- * Standalone /playlist/:id page. Wraps the existing ViewPlaylist
- * component (which previously only ran inside the library's three-pane
- * layout) so it can be navigated to directly from anywhere:
- *
- *   - Profile page playlist cards (Step 8)
- *   - Notification popper invitation rows (Step 7 — was navigating to
- *     the sender's profile as a fallback; now lands on the real
- *     playlist view)
- *   - Future: shareable external links, search results, etc.
- *
- * Responsibilities the library page used to own that this page now
- * does itself: fetching the loaded playlist on mount, providing a
- * delete handler that navigates back when the playlist is removed,
- * providing the "play" handler. Because ViewPlaylist also serves as
- * the in-library editor, those handlers need to behave reasonably
- * here without a library context to return to.
- */
 export default function ViewPlaylistPage() {
     const params = useParams();
     const navigate = useNavigate();
@@ -50,15 +32,11 @@ export default function ViewPlaylistPage() {
             setStatus("loading");
             const action = await dispatch(fetchLoadedPlaylist(playlistId));
             if (cancelled) return;
-            // fetchLoadedPlaylist's thunk uses rejectWithValue on error,
-            // so we check requestStatus rather than the payload shape.
+           
             if (action.meta.requestStatus === "fulfilled") {
                 setStatus("ready");
             } else {
-                // 404 from the backend means either the playlist doesn't
-                // exist, OR the visibility rules don't let the current
-                // user see it. Same UI: "missing". Don't disambiguate —
-                // matches the backend's deliberate non-leaking behaviour.
+                
                 setStatus("missing");
             }
         })();
@@ -71,25 +49,16 @@ export default function ViewPlaylistPage() {
     async function handleDeletePlaylist(id: string) {
         const action = await dispatch(deletePlaylist({ id }));
         if (action.meta.requestStatus === "fulfilled") {
-            // Refresh the user's saved-playlists slice (the deleted
-            // playlist was almost certainly in it — every owner is
-            // also in their playlist's SavedByAccounts) so any other
-            // open view of the library reflects the deletion.
+            
             if (currentUser.id) {
                 dispatch(fetchPlaylistsSavedByAccountId(currentUser.id));
             }
-            // No clean "go back" target — the user might have arrived
-            // from anywhere. Library is the safest landing pad: it's
-            // their own space and the deleted playlist won't be there.
+            
             navigate("/library");
         }
     }
 
     function handlePlay() {
-        // Standalone listen route mirrors this one — keeps the user
-        // in the standalone playlist flow rather than punting back to
-        // the library (which doesn't have the playlist if they're a
-        // non-saver previewing it).
         navigate(`/playlist/${playlistId}/listen`);
     }
 
@@ -120,11 +89,6 @@ export default function ViewPlaylistPage() {
                     )}
                 </Paper>
 
-                {/*
-                  Loading overlay rather than inline spinner so a quick
-                  fetch doesn't flash the empty paper between the route
-                  mount and the response arriving.
-                */}
                 <Backdrop
                     sx={(theme) => ({
                         color: "#fff",

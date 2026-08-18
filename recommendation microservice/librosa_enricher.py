@@ -20,12 +20,6 @@ DB_BATCH_SIZE = 500
 
 
 def setup_logging(verbose: bool):
-    """
-    Configure logging so OUR messages are visible but Librosa's
-    transitive dependencies stop spamming the console. Without this,
-    numba's JIT compiler, matplotlib's font cache, and audioread's
-    deprecation warnings flood the output.
-    """
     level = logging.DEBUG if verbose else logging.INFO
 
     logging.basicConfig(
@@ -37,6 +31,7 @@ def setup_logging(verbose: bool):
                   "urllib3", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
+    #disable la noise
     warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
     warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
     warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
@@ -44,15 +39,8 @@ def setup_logging(verbose: bool):
 def enrich_failed_songs_with_audio(
     limit: int = DB_BATCH_SIZE, reanalyze: bool = False,
 ) -> int:
-    """
-    Run Librosa extraction over songs that need it.
-
-    Default mode picks up only Failed songs (AcousticBrainz had no data
-    but we have audio). With reanalyze=True, also re-processes songs
-    already enriched by Librosa — useful after changing the slicing
-    strategy or feature computation, so existing rows get refreshed
-    rather than left on stale features.
-    """
+    
+    #fallback cu librosa pt piesele cu status Failed
     log = logging.getLogger("librosa_enricher")
     enriched = 0
     failed_extraction = 0
@@ -154,7 +142,7 @@ def main():
     setup_logging(args.verbose)
     log = logging.getLogger("main")
 
-    log.info("=== Stage 3: Librosa enrichment ===")
+    log.info("Librosa enrichment")
     enrich_failed_songs_with_audio(limit=args.limit, reanalyze=args.reanalyze)
     log.info(
         "All done. Run again to process more, or proceed to Stage 4 "

@@ -128,7 +128,7 @@ export default function AdminUserGrid() {
     };
 
     const handleDeleteClick = (id: GridRowId) => () => {
-        dispatch(deleteuser(id as number));
+        dispatch(deleteuser(id as string));
 
         setRows(rows.filter((row) => row.id !== id));
     };

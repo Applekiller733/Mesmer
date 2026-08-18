@@ -5,19 +5,6 @@ from feature_schema import FEATURE_NAMES, FEATURE_COUNT
 
 
 def extract_features_from_acousticbrainz(doc: dict) -> Optional[List[float]]:
-    """
-    Convert one AcousticBrainz lowlevel document into a 40-element list
-    of floats in the canonical schema order.
-
-    Returns None if the document is malformed or missing any required
-    field — partial vectors aren't useful for similarity search and
-    would corrupt the scaler/PCA fit.
-
-    Why not fill missing fields with 0.0 or NaN? Because zeros lie about
-    the song (zero centroid means "all energy at DC", which is
-    nonsensical for music) and NaN cascades through scaler/PCA. Better
-    to mark the song as failed and let Librosa try.
-    """
     try:
         lowlevel = doc["lowlevel"]
         rhythm = doc["rhythm"]

@@ -19,15 +19,8 @@ const VerticalCarousel: React.FC<PropType> = ({
 }) => {
     const [emblaRef, emblaApi] = useEmblaCarousel(options);
 
-    // Track the last index we wrote TO embla, so we can distinguish
-    // "embla moved because the parent changed currentSlideIndex" (don't
-    // re-emit) from "embla moved because the user dragged" (emit).
     const programmaticTargetRef = useRef<number | null>(null);
 
-    // Sync external index changes INTO embla. When the parent dispatches a
-    // new currentSlideIndex (e.g. song ended → onNext() → setIndex), we
-    // scroll embla to match. We skip this when embla is already at the
-    // target index, which happens when the change came FROM embla itself.
     useEffect(() => {
         if (!emblaApi) return;
         if (currentSlideIndex < 0) return;
@@ -35,9 +28,7 @@ const VerticalCarousel: React.FC<PropType> = ({
         if (emblaCurrent === currentSlideIndex) return;
 
         programmaticTargetRef.current = currentSlideIndex;
-        // Animated transition (jump=false). The initial mount also goes
-        // through this path; if you want the first scroll to be instant,
-        // gate on a "first run" ref and pass jump=true for that one call.
+
         emblaApi.scrollTo(currentSlideIndex, false);
     }, [emblaApi, currentSlideIndex]);
 

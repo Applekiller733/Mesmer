@@ -36,21 +36,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-.text-marquee-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    line-height: 1.2;
-    margin: 0;
-}
- 
-.text-marquee-subtitle {
-    font-size: 1.1rem;
-    font-weight: 400;
-    color: #b0b0b0;
-    line-height: 1.3;
-    margin: 4px 0 0;
-}
  
 .upvotes-text {
     padding-left: 8px;
@@ -134,8 +119,6 @@
     transform: scale(1.1);
 }
  
-/* The "circle" variant: dark filled disc with a thin white border, used
- * by play and revert. Volume opts out by not including this class. */
 .audiowidget-control-button-circle {
     background-color: rgba(0, 0, 0, 0.8) !important;
     border: 2px solid rgba(255, 255, 255, 0.3) !important;
@@ -212,6 +195,46 @@ button {
 button:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
+
+.text-marquee {
+    overflow: hidden;
+    white-space: nowrap;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.text-marquee-inner {
+    display: inline-block;
+    white-space: nowrap;
+    transform: translateX(0);
+}
+
+.text-marquee-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.text-marquee-subtitle {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #b0b0b0;
+    line-height: 1.3;
+    margin: 4px 0 0;
+}
+
+.songcomponent:hover .text-marquee-inner {
+    animation: song-marquee 6s linear infinite alternate;
+}
+
+@keyframes song-marquee {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(calc(-1 * var(--marquee-overflow, 0px))); }
+}
+
+
+
 
 /* Responsive adjustments */
 @media (max-width: 600px) {

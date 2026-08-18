@@ -1,3 +1,4 @@
+import { useRef, useEffect, useState } from "react";
 import { Box, Card, Stack, Typography } from "@mui/material";
 import "./playlistlistitem.css";
 import type { Playlist } from "../../../models/playlist";
@@ -14,25 +15,38 @@ export default function PlaylistListItem({
         !!playlist.createdBy?.id &&
         !!currentUserId &&
         playlist.createdBy.id === currentUserId;
-
-    // Creator label only relevant for saved-not-owned rows. Fall back
-    // to "(unknown)" if the response somehow omitted createdBy.userName
-    // — shouldn't happen in normal use but the type allows it.
     const creatorName = playlist.createdBy?.userName ?? "(unknown)";
 
+    const clipRef = useRef<HTMLDivElement>(null);
+    const textRef = useRef<HTMLSpanElement>(null);
+    const [overflow, setOverflow] = useState(0);
+
+    useEffect(() => {
+        const clip = clipRef.current;
+        const text = textRef.current;
+        if (!clip || !text) return;
+        const diff = text.scrollWidth - clip.clientWidth;
+        setOverflow(diff > 0 ? diff : 0);
+    }, [playlist.name]);
+
     return (
-        <Box className="listitem-box">
-            <Card className="listitem-background">
-                <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+        <Card className="listitem-background">
+            <Stack direction="row" alignItems="center" spacing={1} className="listitem-row">
+                <Box className="listitem-title-clip" ref={clipRef}>
+                    <Typography
+                        ref={textRef}
+                        variant="body2"
+                        className={`listitem-title${overflow > 0 ? " is-overflowing" : ""}`}
+                        style={{ ["--marquee-shift" as any]: `-${overflow}px` }}
+                    >
                         {playlist.name}
                     </Typography>
-                    <VisibilityBadge visibility={playlist.visibility} />
-                </Stack>
-                <Typography variant="caption" sx={{ opacity: 0.65 }}>
-                    {isOwned ? "Owned" : `Saved · by ${creatorName}`}
-                </Typography>
-            </Card>
-        </Box>
+                </Box>
+                <VisibilityBadge visibility={playlist.visibility} />
+            </Stack>
+            <Typography variant="caption" noWrap className="listitem-subtitle">
+                {isOwned ? "Owned" : `Saved · by ${creatorName}`}
+            </Typography>
+        </Card>
     );
 }

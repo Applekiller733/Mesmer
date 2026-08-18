@@ -20,13 +20,7 @@ ENRICHMENT_SOURCE_TAG = "librosa:middle-80pct-schema2"
 
 
 def extract_features_from_audio(audio_path: str) -> Optional[List[float]]:
-    """
-    Load an audio file, slice it, and produce the 40-element canonical
-    feature vector.
-
-    Returns None on any failure — bad file, too short to slice, librosa
-    parse error, etc. Caller marks the song Failed and moves on.
-    """
+    #extract with librosa, return None if any step fails or produces non-finite values
     try:
         y, sr = _load_audio_slice(audio_path)
     except Exception as e:
@@ -60,11 +54,7 @@ def extract_features_from_audio(audio_path: str) -> Optional[List[float]]:
 
 
 def _load_audio_slice(path: str) -> Tuple[np.ndarray, int]:
-    """
-    Load the middle 80% of the audio (10% trimmed from each end).
-    Tracks shorter than MIN_DURATION_FOR_TRIM_SEC are loaded whole.
-    Returns (waveform, sample_rate).
-    """
+    #trim slice and load in librosa
     duration = librosa.get_duration(path=path)
 
     if duration >= MIN_DURATION_FOR_TRIM_SEC:
@@ -85,12 +75,8 @@ def _load_audio_slice(path: str) -> Tuple[np.ndarray, int]:
 
 
 def _compute_features(y: np.ndarray, sr: int) -> List[float]:
-    """
-    Run the actual feature extractors on an in-memory waveform. This
-    function MUST produce values in the order defined by FEATURE_NAMES
-    in feature_schema.py.
-    """
-
+    
+    #get features
     tempo_arr = librosa.feature.tempo(y=y, sr=sr)
     tempo_bpm = float(tempo_arr.item() if tempo_arr.size == 1 else tempo_arr[0])
 

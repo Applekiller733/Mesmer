@@ -13,33 +13,11 @@ API_BASE_URL = os.getenv("DOTNET_API_BASE_URL", "http://localhost:5050")
 
 @contextmanager
 def fetch_audio_to_tempfile(song_id: str, timeout: int = 60):
-    """
-    Context manager that fetches a song's audio to a temp file and
-    cleans up on exit.
-
-    Usage:
-        with fetch_audio_to_tempfile(song_id) as path:
-            if path is None:
-                # song has no audio or fetch failed
-                continue
-            # use `path` to load the audio
-        # tempfile is removed automatically here
-
-    Yields:
-        str path to the temp file on success, or None on failure
-        (network error, 404, etc.). The caller is expected to skip
-        the song if path is None.
-
-    Audio files are several MB each. If the
-    caller forgot a cleanup step we'd accumulate gigabytes of temp
-    files during a long enrichment run. The CM enforces cleanup.
-    """
+    
     url = f"{API_BASE_URL}/songs/{song_id}/audio"
     tmp_path: Optional[str] = None
 
     try:
-        # stream=True so we don't load the whole file into memory before
-        # writing to disk. Useful for the 50MB upper bound we set.
         with requests.get(url, stream=True, timeout=timeout) as resp:
             if resp.status_code == 404:
                 #song has no audio, just skip
@@ -66,9 +44,7 @@ def fetch_audio_to_tempfile(song_id: str, timeout: int = 60):
             elif "ogg" in content_type:
                 suffix = ".ogg"
 
-            # delete=False is required on Windows — the file can't be
-            # opened by another process (librosa) while NamedTemporaryFile
-            # is still holding it open with delete=True.
+            # delete=False is required on windows
             with tempfile.NamedTemporaryFile(
                 suffix=suffix, delete=False
             ) as tmp:

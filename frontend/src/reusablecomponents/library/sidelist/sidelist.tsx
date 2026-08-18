@@ -6,39 +6,37 @@ import type { Playlist } from "../../../models/playlist";
 import React from "react";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../../../stores/slices/userdataslice";
+import "./sidelist.css";
 
 export default function SideList({ handlePlaylistClick, handleCreatePlaylist, playlists }: {
     handlePlaylistClick: (event: React.MouseEvent, id: string) => void;
     handleCreatePlaylist: () => void;
     playlists: Playlist[];
 }) {
-    // Current user pulled here rather than threaded down as a prop so
-    // existing callers of SideList don't have to change. The selector
-    // is cheap; PlaylistListItem only needs the id.
     const currentUser = useSelector(selectCurrentUser);
-
     return (
         <ThemeProvider theme={darkTheme}>
-            <Box>
+            <Box className="sidelist-root">
                 <Paper>
                     <div className="upper">
                         <Typography>Library</Typography>
                     </div>
                     <div>
-                        <List>
-                            {
-                                playlists.map((p) => (
-                                    <ListItem key={p.id}>
-                                        <Button onClick={(event) => { handlePlaylistClick(event, p.id) }}>
-                                            <PlaylistListItem
-                                                playlist={p}
-                                                currentUserId={currentUser.id ?? ""}
-                                            />
-                                        </Button>
-                                    </ListItem>
-                                ))
-                            }
-                            <Button onClick={handleCreatePlaylist}>
+                        <List className="sidelist-list">
+                            {playlists.map((p) => (
+                                <ListItem key={p.id} disablePadding className="sidelist-item">
+                                    <Button
+                                        className="sidelist-item-button"
+                                        onClick={(event) => { handlePlaylistClick(event, p.id); }}
+                                    >
+                                        <PlaylistListItem
+                                            playlist={p}
+                                            currentUserId={currentUser.id ?? ""}
+                                        />
+                                    </Button>
+                                </ListItem>
+                            ))}
+                            <Button className="sidelist-create-button" onClick={handleCreatePlaylist}>
                                 Create Playlist
                             </Button>
                         </List>

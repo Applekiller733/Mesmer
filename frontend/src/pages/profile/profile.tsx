@@ -35,13 +35,7 @@ export default function Profile() {
             <Box className="profile-background">
                 <Navbar />
                 <Paper className="profile-paper">
-                    {/*
-                      Existing profile header — name + picture + friend
-                      code + relationship buttons. Sits in the upper
-                      portion of the paper. Each piece is wrapped in
-                      `.profile-header-block` (see profile.css) so the
-                      new playlists section below has a clean break.
-                    */}
+                    
                     <Box className="profile-header-block">
                         <SmallProfile {...profile} id={paramid} />
                         {profile.friendCode && (
@@ -62,7 +56,7 @@ export default function Profile() {
                                 flexWrap: "wrap",
                             }}
                         >
-                            {isOwner || isAdmin && (
+                            {(isOwner || isAdmin) && (
                                 <Button
                                     href={`/profile/${paramid}/edit`}
                                     color="inherit"
@@ -77,18 +71,6 @@ export default function Profile() {
                         </Box>
                     </Box>
 
-                    {/*
-                      New: public playlists section. Belongs at the
-                      bottom of the paper, taking full width regardless
-                      of the existing grid layout above. The component
-                      handles its own loading / empty / error state so
-                      the parent doesn't have to.
-
-                      Keyed by paramid so React fully unmounts and
-                      remounts the section when the user navigates
-                      between profiles in-place — avoids any chance
-                      of stale state bleeding across users.
-                    */}
                     {paramid && (
                         <Box className="profile-playlists-block">
                             <ProfilePlaylists

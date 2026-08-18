@@ -12,18 +12,6 @@ import {
     setLoadingOutgoing,
 } from "../slices/playlistinvitationslice";
 
-/**
- * Thin wrappers that fetch and dispatch into the slice. Mirror the
- * friendshipthunk pattern: the thunk's job is the network call plus
- * loading-flag bookkeeping; mutations are pushed through the slice's
- * setX/removeX/addX reducers from the call site (so optimistic updates
- * stay flexible without re-fetching).
- *
- * State changes (Accept / Decline / Cancel / Invite) are NOT thunks —
- * they're called directly from the components, which then dispatch
- * the appropriate slice action to update local state. Same convention
- * the friend-system uses (see friendrequestsbadge.tsx for the model).
- */
 
 export const fetchIncomingInvitations = createAsyncThunk(
     "playlistinvitation/fetchIncoming",
@@ -55,11 +43,7 @@ export const fetchOutgoingInvitations = createAsyncThunk(
     },
 );
 
-/**
- * Polled by the navbar badge. Swallows errors silently — a transient
- * network failure shouldn't fire a toast at the user; the next poll
- * will refresh. Same swallow pattern friendrequestsbadge uses.
- */
+
 export const fetchIncomingInvitationsCount = createAsyncThunk(
     "playlistinvitation/fetchIncomingCount",
     async (_: void, thunkAPI) => {
