@@ -372,3 +372,5 @@ appsettings.json
 
 Migrations/*
 Migrations\*
+
+Resources/*
