@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using System.Net;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Options;
 using Amazon.S3;
@@ -20,6 +21,14 @@ namespace SongAppApi.Services
         // Short-lived presigned GET URL so clients fetch bytes straight from S3
         // instead of streaming them through the API/Lambda.
         string GetPresignedDownloadUrl(File file, TimeSpan? expiresIn = null);
+        // Issue a short-lived presigned PUT URL so the client uploads bytes
+        // straight to S3 (bypassing the API Gateway payload limit). Validates the
+        // extension and reserves the object key up front.
+        PresignedUpload PresignUpload(FileCategory category, string originalFileName,
+            string? keyPrefix = null, TimeSpan? expiresIn = null);
+        // Verify a presigned upload actually landed (and is within size limits),
+        // then persist the File row. Returns the created entity.
+        File ConfirmUpload(string objectKey, string originalFileName, FileCategory category);
     }
 
     public class FileService : IFileService
@@ -34,6 +43,7 @@ namespace SongAppApi.Services
 
         private static readonly FileExtensionContentTypeProvider ContentTypeProvider = new();
         private static readonly TimeSpan DefaultUrlLifetime = TimeSpan.FromMinutes(15);
+        private static readonly TimeSpan DefaultUploadUrlLifetime = TimeSpan.FromMinutes(15);
 
         // cached lookup for case-insensitive extension matching
         // built once at construction; appsettings.json reload would require restart
@@ -167,6 +177,90 @@ namespace SongAppApi.Services
             // Local signing operation — no network call, so this stays synchronous.
             return _s3.GetPreSignedURL(request);
         }
+
+        public PresignedUpload PresignUpload(FileCategory category, string originalFileName,
+            string? keyPrefix = null, TimeSpan? expiresIn = null)
+        {
+            if (string.IsNullOrWhiteSpace(originalFileName))
+                throw new ArgumentException("File name is required.", nameof(originalFileName));
+
+            var extension = Path.GetExtension(originalFileName);
+            if (string.IsNullOrEmpty(extension) || !_allowedExtensions[category].Contains(extension))
+                throw new InvalidOperationException(
+                    $"Extension '{extension}' is not allowed for {category}.");
+
+            // Reserve a collision-free key now; the client uploads to exactly this key.
+            var safeFileName = $"{Guid.NewGuid():N}{extension}";
+            var key = BuildKey(keyPrefix ?? DefaultPrefixFor(category), safeFileName);
+            var expiresAt = DateTime.UtcNow.Add(expiresIn ?? DefaultUploadUrlLifetime);
+
+            var request = new GetPreSignedUrlRequest
+            {
+                BucketName = _bucket,
+                Key = key,
+                Verb = HttpVerb.PUT,
+                Expires = expiresAt
+            };
+
+            return new PresignedUpload
+            {
+                Key = key,
+                Url = _s3.GetPreSignedURL(request),
+                ExpiresAtUtc = expiresAt
+            };
+        }
+
+        public File ConfirmUpload(string objectKey, string originalFileName, FileCategory category)
+        {
+            if (string.IsNullOrWhiteSpace(objectKey))
+                throw new ArgumentException("Object key is required.", nameof(objectKey));
+
+            // Verify the object actually exists (client really did upload) and read
+            // its size, so a presigned URL can't be used to smuggle in an oversized
+            // file past the category limit.
+            long contentLength;
+            try
+            {
+                var metadata = _s3.GetObjectMetadataAsync(_bucket, objectKey)
+                    .GetAwaiter().GetResult();
+                contentLength = metadata.Headers.ContentLength;
+            }
+            catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                throw new KeyNotFoundException("No uploaded object found for the given key.");
+            }
+
+            var maxSize = _maxSizeBytes[category];
+            if (contentLength > maxSize)
+            {
+                // Reject and clean up so the oversized object doesn't linger.
+                _s3.DeleteObjectAsync(_bucket, objectKey).GetAwaiter().GetResult();
+                throw new InvalidOperationException(
+                    $"File too large. Maximum {maxSize / (1024 * 1024)} MB for {category}.");
+            }
+
+            var extension = Path.GetExtension(originalFileName);
+            var entity = new File
+            {
+                FileName = originalFileName,
+                Extension = (extension ?? string.Empty).TrimStart('.'),
+                FilePath = objectKey
+            };
+
+            _context.Files.Add(entity);
+            _context.SaveChanges();
+
+            return entity;
+        }
+
+        // Default object-key prefix per category when the caller doesn't supply one.
+        private static string DefaultPrefixFor(FileCategory category) => category switch
+        {
+            FileCategory.Audio => "Songs/Audio",
+            FileCategory.Video => "Songs/Video",
+            FileCategory.Image => "Images",
+            _ => "Misc"
+        };
 
         // Copy the uploaded bytes to S3 under `key`. ASP.NET Core has no
         // synchronization context, so blocking on the async SDK call here does not

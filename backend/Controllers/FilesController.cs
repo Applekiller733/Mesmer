@@ -31,6 +31,61 @@ namespace SongAppApi.Controllers
             }
         }
 
+        // Step 1 of a direct-to-S3 upload: hand the client a presigned PUT URL.
+        // The client then PUTs the file bytes straight to S3 (bypassing the API
+        // Gateway payload limit), and calls confirm-upload afterwards.
+        [HttpPost("presign-upload")]
+        public ActionResult<PresignedUpload> PresignUpload([FromBody] PresignUploadRequest request)
+        {
+            try
+            {
+                var result = _fileService.PresignUpload(
+                    request.Category, request.FileName, request.KeyPrefix);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        // Step 2: the client reports the upload finished; verify + persist the
+        // File row and return its id (which songs/accounts can then reference).
+        [HttpPost("confirm-upload")]
+        public ActionResult<string> ConfirmUpload([FromBody] ConfirmUploadRequest request)
+        {
+            try
+            {
+                var file = _fileService.ConfirmUpload(
+                    request.Key, request.FileName, request.Category);
+                return Ok(file.Id.ToString());
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
         [HttpGet("{id}")]
         public ActionResult Get(string id)
         {

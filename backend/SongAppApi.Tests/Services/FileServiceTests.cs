@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using FluentAssertions;
@@ -7,6 +8,7 @@ using Moq;
 using SongAppApi.Authorization;
 using SongAppApi.Helpers;
 using SongAppApi.Helpers.Enumerators;
+using SongAppApi.Models.Files;
 using SongAppApi.Services;
 using SongAppApi.Tests.Common;
 using Xunit;
@@ -230,6 +232,80 @@ namespace SongAppApi.Tests.Services
             var url = _service.GetPresignedDownloadUrl(saved);
 
             url.Should().Be(signed);
+        }
+
+
+        [Fact]
+        public void PresignUpload_ValidAudio_ReturnsPutUrlAndKey()
+        {
+            const string putUrl = "https://s3.example.com/put";
+            _s3.Setup(s => s.GetPreSignedURL(
+                    It.Is<GetPreSignedUrlRequest>(r =>
+                        r.BucketName == Bucket && r.Verb == HttpVerb.PUT)))
+                .Returns(putUrl);
+
+            var result = _service.PresignUpload(FileCategory.Audio, "song.mp3");
+
+            result.Url.Should().Be(putUrl);
+            result.Key.Should().StartWith("Songs/Audio/");
+            result.Key.Should().EndWith(".mp3");
+            result.ExpiresAtUtc.Should().BeAfter(DateTime.UtcNow);
+        }
+
+        [Fact]
+        public void PresignUpload_DisallowedExtension_Throws()
+        {
+            var act = () => _service.PresignUpload(FileCategory.Audio, "evil.exe");
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("*not allowed*");
+        }
+
+        [Fact]
+        public void ConfirmUpload_Valid_PersistsRow()
+        {
+            var metadata = new GetObjectMetadataResponse();
+            metadata.Headers.ContentLength = 1024;
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    Bucket, "Songs/Audio/abc.mp3", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(metadata);
+
+            var result = _service.ConfirmUpload("Songs/Audio/abc.mp3", "song.mp3", FileCategory.Audio);
+
+            result.FilePath.Should().Be("Songs/Audio/abc.mp3");
+            result.Extension.Should().Be("mp3");
+            _context.Files.Any(f => f.Id == result.Id).Should().BeTrue();
+        }
+
+        [Fact]
+        public void ConfirmUpload_TooLarge_DeletesAndThrows()
+        {
+            var metadata = new GetObjectMetadataResponse();
+            metadata.Headers.ContentLength = 51L * 1024 * 1024; // over the 50 MB audio limit
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(metadata);
+            _s3.Setup(s => s.DeleteObjectAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new DeleteObjectResponse());
+
+            var act = () => _service.ConfirmUpload("Songs/Audio/big.mp3", "big.mp3", FileCategory.Audio);
+
+            act.Should().Throw<InvalidOperationException>().WithMessage("*too large*");
+            _s3.Verify(s => s.DeleteObjectAsync(
+                Bucket, "Songs/Audio/big.mp3", It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public void ConfirmUpload_ObjectMissing_Throws()
+        {
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new AmazonS3Exception("not found") { StatusCode = HttpStatusCode.NotFound });
+
+            var act = () => _service.ConfirmUpload("Songs/Audio/missing.mp3", "x.mp3", FileCategory.Audio);
+
+            act.Should().Throw<KeyNotFoundException>();
         }
     }
 }
