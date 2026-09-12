@@ -2,10 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Mesmer backend (SongAppApi) — ASP.NET Core 8 API on AWS Lambda behind an
-  API Gateway HTTP API. Compute layer (Phases 1-2), the S3 media bucket
-  (Phase 3.1), and a private VPC + Aurora PostgreSQL Serverless v2 cluster
-  (Phase 3.2). Wiring the Lambda into the VPC and adding VPC endpoints is
-  Phase 3.3; granting the app read access to the DB secret is Phase 3.4.
+  API Gateway HTTP API, plus the S3 media bucket (Phase 3.1). On the free plan
+  Aurora must use express configuration, which is VPC-less and cannot be created
+  via CloudFormation, so the database is created out of band (see scripts/) and
+  the Lambda stays out of a VPC. The app reads the DB connection from Secrets
+  Manager at runtime (Phase 3.4).
 
 # -----------------------------------------------------------------------------
 # Parameters
@@ -27,36 +28,6 @@ Parameters:
       (presigned uploads/downloads). Defaults to "*" for early development —
       tighten to your frontend origin(s), e.g. https://app.example.com, before
       anything real.
-
-  DBMasterUsername:
-    Type: String
-    Default: mesmeradmin
-    Description: Aurora master username. The password is generated and managed by
-      RDS in Secrets Manager (never in this template).
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
-    MinLength: 1
-    MaxLength: 63
-
-  DBName:
-    Type: String
-    Default: mesmer
-    Description: Initial database name created in the Aurora cluster.
-    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_]*"
-    MinLength: 1
-    MaxLength: 63
-
-  DBMinCapacity:
-    Type: Number
-    Default: 0
-    Description: Aurora Serverless v2 minimum ACUs. 0 enables scale-to-zero — the
-      cluster pauses when idle and you pay only for storage, at the cost of a few
-      seconds of resume latency on the first request after a pause. Requires a
-      recent engine version; if a deploy rejects 0, use 0.5.
-
-  DBMaxCapacity:
-    Type: Number
-    Default: 2
-    Description: Aurora Serverless v2 maximum ACUs (Free Plan allowance is up to 4).
 
 # -----------------------------------------------------------------------------
 # Globals — defaults applied to every AWS::Serverless::Function in this template
@@ -168,139 +139,13 @@ Resources:
             ExposedHeaders: [ETag, Content-Length, Content-Range, Accept-Ranges]
             MaxAge: 3000
 
-  # ---------------------------------------------------------------------------
-  # Networking (Phase 3.2) — a self-contained private VPC for the database.
-  # No internet gateway and no NAT gateway (NAT is ~$32/mo, the biggest
-  # avoidable credit drain). Phase 3.3 adds VPC endpoints so the VPC-attached
-  # Lambda can still reach S3 and Secrets Manager without a NAT.
-  # ---------------------------------------------------------------------------
-  Vpc:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true        # required for RDS + interface VPC endpoints
-      Tags:
-        - Key: Name
-          Value: !Sub mesmer-${Stage}-vpc
-
-  # Two private subnets in different AZs — a DB subnet group requires at least
-  # two AZs even for a single-instance cluster.
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: !Sub mesmer-${Stage}-private-1
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: !Sub mesmer-${Stage}-private-2
-
-  # A private route table (no default route to the internet). Phase 3.3 attaches
-  # the S3 gateway endpoint to this route table.
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Vpc
-      Tags:
-        - Key: Name
-          Value: !Sub mesmer-${Stage}-private-rt
-
-  PrivateSubnet1RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
-
-  PrivateSubnet2RouteAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
-
-  # Security group on the database. No ingress yet — Phase 3.3 adds a rule
-  # allowing only the Lambda's security group to reach Postgres (5432).
-  DbSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Mesmer Aurora cluster - DB access
-      VpcId: !Ref Vpc
-      Tags:
-        - Key: Name
-          Value: !Sub mesmer-${Stage}-db-sg
-
-  DbSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Mesmer Aurora private subnets
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-
-  # ---------------------------------------------------------------------------
-  # Aurora PostgreSQL Serverless v2 (Phase 3.2)
-  # Serverless v2 is "provisioned" engine mode + a db.serverless instance driven
-  # by ServerlessV2ScalingConfiguration (do NOT set EngineMode: serverless — that
-  # is the retired v1). The schema, EF migrations and pgvector all carry over from
-  # the existing Postgres. NOTE: pgvector needs engine >= 15.3; the default engine
-  # version supports it, but verify `CREATE EXTENSION vector` succeeds after first
-  # deploy.
-  # DeletionPolicy Delete (no final snapshot) suits a learning project with
-  # tear-down-between-sessions discipline; switch to Snapshot/Retain for anything
-  # you can't recreate.
-  # ---------------------------------------------------------------------------
-  AuroraCluster:
-    Type: AWS::RDS::DBCluster
-    # DeletionPolicy fires on an explicit stack delete (sam delete): Delete keeps
-    # teardown clean with no lingering snapshot cost. UpdateReplacePolicy fires
-    # when a template change forces CloudFormation to REPLACE the cluster (e.g. a
-    # change to MasterUsername / DatabaseName / DBSubnetGroupName): Snapshot takes
-    # a final snapshot first, so a forced rebuild never silently loses data.
-    # Set DeletionPolicy to Snapshot/Retain if you also want that safety net on
-    # intentional deletes.
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Snapshot
-    Properties:
-      Engine: aurora-postgresql
-      DatabaseName: !Ref DBName
-      MasterUsername: !Ref DBMasterUsername
-      # RDS generates and rotates the master password in Secrets Manager; no
-      # plaintext password anywhere in the template.
-      ManageMasterUserPassword: true
-      DBSubnetGroupName: !Ref DbSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref DbSecurityGroup
-      StorageEncrypted: true
-      BackupRetentionPeriod: 1
-      DeletionProtection: false
-      ServerlessV2ScalingConfiguration:
-        MinCapacity: !Ref DBMinCapacity
-        MaxCapacity: !Ref DBMaxCapacity
-
-  AuroraInstance:
-    Type: AWS::RDS::DBInstance
-    # An Aurora instance is compute only — data lives in the cluster volume — so
-    # there is nothing to snapshot here and replacing/deleting it loses no data
-    # (Aurora instance-level snapshots aren't supported anyway).
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      Engine: aurora-postgresql
-      DBClusterIdentifier: !Ref AuroraCluster
-      DBInstanceClass: db.serverless   # required for Serverless v2
-      PubliclyAccessible: false
+  # NOTE: the Aurora PostgreSQL cluster is NOT defined here. On the free plan it
+  # must use express configuration, which is VPC-less and unsupported by
+  # CloudFormation (AWS::RDS::DBCluster has no WithExpressConfiguration). It is
+  # created out of band via scripts/create-express-db.sh, and the Lambda reaches
+  # it (and S3 / Secrets Manager) directly over the internet — no VPC, no NAT,
+  # no VPC endpoints. Phase 3.4 injects its connection details from Secrets
+  # Manager.
 
 # -----------------------------------------------------------------------------
 # Outputs
@@ -318,24 +163,3 @@ Outputs:
   MediaBucketName:
     Description: Name of the S3 media bucket.
     Value: !Ref MediaBucket
-  VpcId:
-    Description: VPC hosting the database.
-    Value: !Ref Vpc
-  PrivateSubnetIds:
-    Description: Private subnet IDs (for the Lambda VPC config in Phase 3.3).
-    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
-  DbSecurityGroupId:
-    Description: Security group protecting the Aurora cluster.
-    Value: !Ref DbSecurityGroup
-  DbClusterEndpoint:
-    Description: Aurora cluster writer endpoint (host).
-    Value: !GetAtt AuroraCluster.Endpoint.Address
-  DbClusterPort:
-    Description: Aurora cluster port.
-    Value: !GetAtt AuroraCluster.Endpoint.Port
-  DbName:
-    Description: Initial database name.
-    Value: !Ref DBName
-  DbSecretArn:
-    Description: ARN of the RDS-managed master credentials secret in Secrets Manager.
-    Value: !GetAtt AuroraCluster.MasterUserSecret.SecretArn
