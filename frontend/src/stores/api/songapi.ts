@@ -2,6 +2,7 @@
 import type { Song, CreateSongRequest, DeleteSongRequest, FlipLikeRequest, UpdateSongRequest } from "../../models/song";
 // import type Song from "../../models/song";
 import authHeader from "./apihelper";
+import { uploadFileToS3 } from "./fileapi";
 
 
 const API_URL = `${import.meta.env.VITE_API_URL}/songs`;
@@ -139,15 +140,23 @@ export async function apifetchsongbyid(id: string) {
 
 export async function apicreatesong(request: CreateSongRequest) {
     const url = `${API_URL}/create-song`;
- 
+
+    // Audio can be up to 50 MB, which exceeds the API Gateway payload limit, so
+    // upload the file straight to S3 first and pass the resulting file id
+    // instead of streaming the bytes through the API.
+    let soundFileId: string | undefined;
+    if (request.soundFile) {
+        soundFileId = await uploadFileToS3(request.soundFile, "Audio");
+    }
+
     const formData = new FormData();
     formData.append("name", request.name);
     formData.append("artist", request.artist);
     if (request.imageUrl) formData.append("imageUrl", request.imageUrl);
     if (request.videoUrl) formData.append("videoUrl", request.videoUrl);
     if (request.soundUrl) formData.append("soundUrl", request.soundUrl);
-    if (request.soundFile) formData.append("soundFile", request.soundFile);
- 
+    if (soundFileId) formData.append("soundFileId", soundFileId);
+
     // IMPORTANT: do NOT set Content-Type manually for multipart.
     // The browser must set it (with the boundary parameter) automatically.
     const response = await fetch(url, {
@@ -155,7 +164,7 @@ export async function apicreatesong(request: CreateSongRequest) {
         headers: { ...authHeader(url) }, // auth only, no Content-Type
         body: formData,
     });
- 
+
     const data = await response.json();
     if (!response.ok) {
         throw new Error(data.message || "Creating Song failed");
