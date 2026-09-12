@@ -36,17 +36,19 @@ namespace SongAppApi.Controllers
         {
             try
             {
-                //todo move filestream to service and return reference to filestream here
                 var file = _fileService.GetFileById(id);
-
-                if (file == null || !System.IO.File.Exists(file.FilePath))
+                if (file == null)
                     return NotFound();
 
-                var stream = new FileStream(file.FilePath, FileMode.Open, FileAccess.Read);
-                var provider = new FileExtensionContentTypeProvider();
-                if (!provider.TryGetContentType(file.FileName, out var contentType))
-                    contentType = "application/octet-stream";
-                return File(stream, contentType, file.FileName);
+                // Redirect the client to a short-lived presigned S3 URL so the
+                // bytes transfer straight from S3 (media elements and range
+                // requests follow the redirect transparently).
+                var url = _fileService.GetPresignedDownloadUrl(file);
+                return Redirect(url);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
             }
             catch (Exception ex)
             {

@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using DotNetEnv;
 using Microsoft.AspNetCore.Http.Features;
 using Amazon.Lambda.AspNetCoreServer.Hosting;
+using Amazon.S3;
 
 Env.Load();
 
@@ -72,6 +73,11 @@ var builder = WebApplication.CreateBuilder(args);
         options.Limits.MaxRequestBodySize = transportLimit;
     });
 
+
+    // AWS S3 client for media storage. The default constructor resolves the
+    // region and credentials from the environment (AWS_REGION + the execution
+    // role in Lambda; your profile/SSO locally).
+    services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client());
 
     // configure DI for application services
     services.AddScoped<IJwtUtils, JwtUtils>();

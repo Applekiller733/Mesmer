@@ -15,11 +15,14 @@ namespace SongAppApi.Controllers
     {
         private readonly ISongService _service;
         private readonly IAccountService _accountService;
+        private readonly IFileService _fileService;
 
-        public SongsController(ISongService service, IAccountService accountService)
+        public SongsController(ISongService service, IAccountService accountService,
+            IFileService fileService)
         {
             _service = service;
             _accountService = accountService;
+            _fileService = fileService;
         }
 
         [AllowAnonymous]
@@ -73,20 +76,13 @@ namespace SongAppApi.Controllers
             try
             {
                 var file = _service.GetSoundFile(id);
-                if (file == null || !System.IO.File.Exists(file.FilePath))
+                if (file == null)
                     return NotFound();
 
-                var stream = new FileStream(
-                    file.FilePath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read);
-
-                var provider = new FileExtensionContentTypeProvider();
-                if (!provider.TryGetContentType(file.FileName, out var contentType))
-                    contentType = "application/octet-stream";
-
-                return File(stream, contentType, enableRangeProcessing: true);
+                // Redirect to a presigned S3 URL. S3 serves range requests
+                // natively, so audio scrubbing keeps working against S3 directly.
+                var url = _fileService.GetPresignedDownloadUrl(file);
+                return Redirect(url);
             }
             catch (Exception ex)
             {

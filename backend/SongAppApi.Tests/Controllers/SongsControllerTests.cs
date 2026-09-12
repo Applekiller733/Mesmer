@@ -17,11 +17,13 @@ namespace SongAppApi.Tests.Controllers
     {
         private readonly Mock<ISongService> _songService = new();
         private readonly Mock<IAccountService> _accountService = new();
+        private readonly Mock<IFileService> _fileService = new();
         private readonly SongsController _controller;
 
         public SongsControllerTests()
         {
-            _controller = new SongsController(_songService.Object, _accountService.Object);
+            _controller = new SongsController(
+                _songService.Object, _accountService.Object, _fileService.Object);
         }
 
 

@@ -221,15 +221,13 @@
                 }
 
                 var profilepicture = _fileService.GetFileById((string)fileid);
-                //Console.WriteLine(System.IO.File.Exists(profilepicture.FilePath));
-                if (profilepicture == null || !System.IO.File.Exists(profilepicture.FilePath))
+                if (profilepicture == null)
                     return NotFound();
 
-                var stream = new FileStream(profilepicture.FilePath, FileMode.Open, FileAccess.Read);
-                var provider = new FileExtensionContentTypeProvider();
-                if (!provider.TryGetContentType(profilepicture.FileName, out var contentType))
-                    contentType = "application/octet-stream";
-                return File(stream, contentType, profilepicture.FileName);
+                // Redirect to a short-lived presigned S3 URL rather than
+                // streaming the image through the API.
+                var url = _fileService.GetPresignedDownloadUrl(profilepicture);
+                return Redirect(url);
             }
             catch (Exception ex)
             {
