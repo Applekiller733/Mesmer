@@ -47,9 +47,11 @@ Parameters:
 
   DBMinCapacity:
     Type: Number
-    Default: 0.5
-    Description: Aurora Serverless v2 minimum ACUs. 0.5 is the smallest always-on
-      floor; some recent engine versions also allow 0 for scale-to-zero.
+    Default: 0
+    Description: Aurora Serverless v2 minimum ACUs. 0 enables scale-to-zero — the
+      cluster pauses when idle and you pay only for storage, at the cost of a few
+      seconds of resume latency on the first request after a pause. Requires a
+      recent engine version; if a deploy rejects 0, use 0.5.
 
   DBMaxCapacity:
     Type: Number
@@ -261,8 +263,15 @@ Resources:
   # ---------------------------------------------------------------------------
   AuroraCluster:
     Type: AWS::RDS::DBCluster
+    # DeletionPolicy fires on an explicit stack delete (sam delete): Delete keeps
+    # teardown clean with no lingering snapshot cost. UpdateReplacePolicy fires
+    # when a template change forces CloudFormation to REPLACE the cluster (e.g. a
+    # change to MasterUsername / DatabaseName / DBSubnetGroupName): Snapshot takes
+    # a final snapshot first, so a forced rebuild never silently loses data.
+    # Set DeletionPolicy to Snapshot/Retain if you also want that safety net on
+    # intentional deletes.
     DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    UpdateReplacePolicy: Snapshot
     Properties:
       Engine: aurora-postgresql
       DatabaseName: !Ref DBName
@@ -282,6 +291,9 @@ Resources:
 
   AuroraInstance:
     Type: AWS::RDS::DBInstance
+    # An Aurora instance is compute only — data lives in the cluster volume — so
+    # there is nothing to snapshot here and replacing/deleting it loses no data
+    # (Aurora instance-level snapshots aren't supported anyway).
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
