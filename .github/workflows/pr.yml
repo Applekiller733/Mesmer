@@ -1,0 +1,40 @@
+name: PR validation (backend)
+
+# Quality gate: build, test, and validate the template on every PR targeting
+# main. No AWS credentials and no deploy — this only proves the change is sound
+# before it can be merged. Make this a required check in branch protection.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build
+        run: dotnet build backend/SongAppApi.sln --configuration Release
+
+      - name: Test
+        run: dotnet test backend/SongAppApi.sln --configuration Release --no-build
+
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Validate SAM template
+        run: sam validate --lint

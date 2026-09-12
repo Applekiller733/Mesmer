@@ -1,0 +1,45 @@
+# SAM CLI configuration — committed so both local runs and CI deploy the same
+# stack with the same settings. Select an environment with `--config-env`, e.g.
+#   sam deploy --config-env prod
+# The unqualified `default` environment is dev.
+version = 0.1
+
+# -----------------------------------------------------------------------------
+# dev (default)
+# -----------------------------------------------------------------------------
+[default.global.parameters]
+stack_name = "mesmer-backend-dev"
+
+[default.build.parameters]
+cached = true
+parallel = true
+use_container = true          # build inside the Lambda-like container for a faithful artifact
+
+[default.deploy.parameters]
+stack_name = "mesmer-backend-dev"
+region = "eu-central-1"       # Frankfurt; change to your chosen region
+resolve_s3 = true            # let SAM manage the deployment artifact bucket
+capabilities = "CAPABILITY_IAM"   # the stack creates the Lambda execution role
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = "Stage=dev"
+
+# -----------------------------------------------------------------------------
+# prod
+# -----------------------------------------------------------------------------
+[prod.global.parameters]
+stack_name = "mesmer-backend-prod"
+
+[prod.build.parameters]
+cached = true
+parallel = true
+use_container = true
+
+[prod.deploy.parameters]
+stack_name = "mesmer-backend-prod"
+region = "eu-central-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = "Stage=prod"

@@ -1,0 +1,55 @@
+name: Deploy backend
+
+# Deploy the Mesmer backend to AWS on pushes to main. Path-filtered so that
+# frontend- or recommendation-service-only changes don't trigger a deploy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'template.yaml'
+      - 'samconfig.toml'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+# Required for OIDC: the job must be allowed to mint an id-token. Forgetting
+# id-token: write is the most common OIDC setup error.
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run tests
+        run: dotnet test backend/SongAppApi.sln --configuration Release
+
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-central-1' }}
+
+      - name: SAM build
+        run: sam build --use-container
+
+      - name: SAM deploy
+        # Stack name / region / parameters come from the committed samconfig.toml.
+        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
