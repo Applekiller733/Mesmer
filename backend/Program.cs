@@ -6,6 +6,7 @@ using SongAppApi.Services;
 using System.Text.Json.Serialization;
 using DotNetEnv;
 using Microsoft.AspNetCore.Http.Features;
+using Amazon.Lambda.AspNetCoreServer.Hosting;
 
 Env.Load();
 
@@ -13,6 +14,11 @@ var builder = WebApplication.CreateBuilder(args);
 {
     var services = builder.Services;
     var env = builder.Environment;
+
+    // Run as a Lambda behind an API Gateway HTTP API when hosted in Lambda,
+    // and as normal Kestrel locally. The adapter is a no-op outside Lambda,
+    // so `dotnet run` behaviour is unchanged.
+    services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
 
     services.AddDbContext<DataContext>();
     services.AddCors();
