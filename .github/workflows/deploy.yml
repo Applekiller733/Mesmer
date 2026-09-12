@@ -44,7 +44,9 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          # The pipeline execution role created by `sam pipeline bootstrap`
+          # (assumed via the existing GitHub OIDC provider). No stored keys.
+          role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
 
       - name: SAM build
@@ -52,4 +54,9 @@ jobs:
 
       - name: SAM deploy
         # Stack name / region / parameters come from the committed samconfig.toml.
-        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+        # --role-arn passes the CloudFormationExecutionRole (also created by
+        # `sam pipeline bootstrap`) that CloudFormation uses to create resources,
+        # so the assumed pipeline role only needs deploy-orchestration permissions.
+        run: >
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          --role-arn ${{ secrets.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
