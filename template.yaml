@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Mesmer backend (SongAppApi) — ASP.NET Core 8 API on AWS Lambda behind an
+  API Gateway HTTP API. This is the compute-layer template (Phases 1-2 of the
+  migration plan): one Lambda function, one HTTP API, and their execution role
+  and log group. The data layer (S3, Aurora PostgreSQL, Secrets Manager, VPC
+  wiring) is added in Phase 3.
+
+# -----------------------------------------------------------------------------
+# Parameters
+# -----------------------------------------------------------------------------
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Deployment environment. Drives ASPNETCORE_ENVIRONMENT and naming.
+
+# -----------------------------------------------------------------------------
+# Globals — defaults applied to every AWS::Serverless::Function in this template
+# -----------------------------------------------------------------------------
+Globals:
+  Function:
+    Runtime: dotnet8          # .NET 8 is an LTS managed Lambda runtime (no container packaging needed)
+    MemorySize: 512
+    Timeout: 30               # generous headroom for cold starts; API Gateway itself caps at 29s
+    Architectures:
+      - x86_64
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+Resources:
+  MusicApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub mesmer-backend-${Stage}
+      # Monorepo-aware: build the backend folder, not the repo root. Only
+      # SongAppApi.csproj sits directly under backend/ (the test project lives
+      # in the backend/SongAppApi.Tests/ subfolder), so SAM builds the API.
+      CodeUri: ./backend/
+      # Assembly name of the API project. The Amazon.Lambda.AspNetCoreServer.Hosting
+      # adapter uses the ASP.NET Core entry point, so the handler is just the assembly.
+      Handler: SongAppApi
+      Description: !Sub Mesmer music API (${Stage})
+      Environment:
+        Variables:
+          # Keep the managed runtime out of Development so Swagger/dev-only paths
+          # behave as intended; override per stage as needed.
+          ASPNETCORE_ENVIRONMENT: Production
+          # Connection string, JWT/SMTP secrets, S3 bucket, and the recommendation
+          # service URL are injected in later phases (Secrets Manager + VPC).
+      Events:
+        CatchAll:
+          Type: HttpApi
+          Properties:
+            # Single catch-all route: API Gateway forwards everything and ASP.NET
+            # Core does its own routing (controllers, [Route] attributes, etc.).
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            # /{proxy+} does not match the bare root path, so map "/" explicitly.
+            Path: /
+            Method: ANY
+
+  # Explicit log group so retention is codified (SAM would otherwise auto-create
+  # one with no retention policy, i.e. logs kept forever).
+  MusicApiFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/mesmer-backend-${Stage}
+      RetentionInDays: 14
+
+# -----------------------------------------------------------------------------
+# Outputs
+# -----------------------------------------------------------------------------
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL of the HTTP API (invoke your endpoints under this).
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  FunctionName:
+    Description: Lambda function name.
+    Value: !Ref MusicApiFunction
+  FunctionArn:
+    Description: Lambda function ARN.
+    Value: !GetAtt MusicApiFunction.Arn
