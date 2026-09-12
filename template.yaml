@@ -235,7 +235,7 @@ Resources:
   DbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Mesmer Aurora cluster — DB access
+      GroupDescription: Mesmer Aurora cluster - DB access
       VpcId: !Ref Vpc
       Tags:
         - Key: Name
