@@ -33,7 +33,7 @@ var builder = WebApplication.CreateBuilder(args);
                       ?? "http://localhost:8000";
         client.BaseAddress = new Uri(baseUrl);
 
-        // Reasonable timeout — the Python query is normally <100ms, but if
+        // Reasonable timeout ï¿½ the Python query is normally <100ms, but if
         // the service is hung we don't want to block .NET requests forever.
         client.Timeout = TimeSpan.FromSeconds(10);
     });
@@ -81,11 +81,16 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 // migrate any database changes on startup (includes initial db creation)
-using (var scope = app.Services.CreateScope())
-{
-    var dataContext = scope.ServiceProvider.GetRequiredService<DataContext>();
-    dataContext.Database.Migrate();
-}
+// Disabled for AWS Lambda: running migrations during startup executes on every
+// cold start, requires the database to be reachable at init, can race across
+// concurrent cold starts, and a failed migration would brick all invocations.
+// Migrations are applied out-of-band instead (e.g. an EF migration bundle in CI
+// or a one-off task). Re-enable for local development if desired.
+//using (var scope = app.Services.CreateScope())
+//{
+//    var dataContext = scope.ServiceProvider.GetRequiredService<DataContext>();
+//    dataContext.Database.Migrate();
+//}
 
 // configure HTTP request pipeline
 {
