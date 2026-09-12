@@ -2,10 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Mesmer backend (SongAppApi) — ASP.NET Core 8 API on AWS Lambda behind an
-  API Gateway HTTP API. This is the compute-layer template (Phases 1-2 of the
-  migration plan): one Lambda function, one HTTP API, and their execution role
-  and log group. The data layer (S3, Aurora PostgreSQL, Secrets Manager, VPC
-  wiring) is added in Phase 3.
+  API Gateway HTTP API. Compute layer (Phases 1-2) plus the S3 media bucket
+  (Phase 3.1). The remaining data layer (Aurora PostgreSQL, Secrets Manager, VPC
+  wiring) is added in later Phase 3 steps.
 
 # -----------------------------------------------------------------------------
 # Parameters
@@ -18,6 +17,15 @@ Parameters:
       - dev
       - prod
     Description: Deployment environment. Drives ASPNETCORE_ENVIRONMENT and naming.
+
+  MediaCorsAllowedOrigins:
+    Type: CommaDelimitedList
+    Default: "*"
+    Description: >
+      Origins allowed to talk to the media bucket directly from the browser
+      (presigned uploads/downloads). Defaults to "*" for early development —
+      tighten to your frontend origin(s), e.g. https://app.example.com, before
+      anything real.
 
 # -----------------------------------------------------------------------------
 # Globals — defaults applied to every AWS::Serverless::Function in this template
@@ -51,8 +59,27 @@ Resources:
           # Keep the managed runtime out of Development so Swagger/dev-only paths
           # behave as intended; override per stage as needed.
           ASPNETCORE_ENVIRONMENT: Production
-          # Connection string, JWT/SMTP secrets, S3 bucket, and the recommendation
-          # service URL are injected in later phases (Secrets Manager + VPC).
+          # Name of the media bucket, read by the app to build S3 SDK calls and
+          # presigned URLs.
+          MEDIA_BUCKET_NAME: !Ref MediaBucket
+          # Connection string, JWT/SMTP secrets, and the recommendation service
+          # URL are injected in later phases (Secrets Manager + VPC).
+      Policies:
+        # Least-privilege access to the media bucket only — object-level R/W on
+        # its contents, plus List on the bucket itself. No wildcard buckets.
+        - Statement:
+            - Sid: MediaBucketObjects
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub ${MediaBucket.Arn}/*
+            - Sid: MediaBucketList
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt MediaBucket.Arn
       Events:
         CatchAll:
           Type: HttpApi
@@ -76,6 +103,40 @@ Resources:
       LogGroupName: !Sub /aws/lambda/mesmer-backend-${Stage}
       RetentionInDays: 14
 
+  # Media bucket: stores song audio/video and profile images that used to live on
+  # local disk. Private — clients never read/write it directly except via
+  # short-lived presigned URLs the API issues, which is also why CORS is enabled.
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    # Keep the bucket (and its objects) if the stack is deleted — media must not
+    # vanish with an app-stack teardown.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      # Bucket names are globally unique; scope by stage + account + region.
+      BucketName: !Sub mesmer-media-${Stage}-${AWS::AccountId}-${AWS::Region}
+      # No public access whatsoever; presigned URLs carry their own auth.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced   # disable ACLs entirely
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref MediaCorsAllowedOrigins
+            AllowedMethods: [GET, PUT, POST, HEAD]
+            AllowedHeaders: ["*"]
+            # Needed so the browser can read range/etag headers on GETs.
+            ExposedHeaders: [ETag, Content-Length, Content-Range, Accept-Ranges]
+            MaxAge: 3000
+
 # -----------------------------------------------------------------------------
 # Outputs
 # -----------------------------------------------------------------------------
@@ -89,3 +150,6 @@ Outputs:
   FunctionArn:
     Description: Lambda function ARN.
     Value: !GetAtt MusicApiFunction.Arn
+  MediaBucketName:
+    Description: Name of the S3 media bucket.
+    Value: !Ref MediaBucket
