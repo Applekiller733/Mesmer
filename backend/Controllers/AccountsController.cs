@@ -269,7 +269,16 @@
                 if (Account.Role != Role.Admin)
                     model.Role = null;
 
-                if (model.ProfilePicture != null)
+                if (model.ProfilePictureFileId != null)
+                {
+                    // Picture already uploaded straight to S3 (presign + confirm);
+                    // just link the existing file to the account.
+                    var file = _fileService.GetFileById(
+                        model.ProfilePictureFileId.Value.ToString());
+                    var account = _accountService.Update(model.Id, model, file);
+                    return Ok(account);
+                }
+                else if (model.ProfilePicture != null)
                 {
                     //Console.WriteLine("MODEL.PROFILEPICTURE IS -NOT- NULL");
                     var filenameGUID = Guid.NewGuid().ToString();

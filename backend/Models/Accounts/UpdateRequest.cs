@@ -46,6 +46,10 @@ namespace SongAppApi.Models.Accounts
 
         public FileModel? ProfilePicture { get; set; }
 
+        // Id of a picture already uploaded straight to S3 (presign + confirm
+        // flow). When set, it takes precedence over ProfilePicture.
+        public Guid? ProfilePictureFileId { get; set; }
+
         // helpers
 
         private string replaceEmptyWithNull(string value)

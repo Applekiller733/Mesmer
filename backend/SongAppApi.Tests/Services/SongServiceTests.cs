@@ -136,6 +136,61 @@ namespace SongAppApi.Tests.Services
                 It.IsAny<IFormFile>(), It.IsAny<string>(), FileCategory.Audio), Times.Once);
         }
 
+        [Fact]
+        public void Create_WithSoundFileId_ReferencesExistingFileAndClearsUrl()
+        {
+            var owner = EntityBuilder.NewAccount();
+            _context.Accounts.Add(owner);
+            _context.SaveChanges();
+
+            var fileId = Guid.NewGuid();
+            _fileService.Setup(f => f.GetFileById(fileId.ToString()))
+                .Returns(new EntityFile
+                {
+                    Id = fileId,
+                    FileName = "song.mp3",
+                    Extension = "mp3",
+                    FilePath = "Songs/Audio/abc.mp3"
+                });
+
+            var result = _service.Create(new CreateSongRequest
+            {
+                Name = "S",
+                Artist = "A",
+                SoundUrl = "https://should-be-cleared.example.com/x.mp3",
+                SoundFileId = fileId,
+            }, owner);
+
+            var stored = _context.Songs.Single(s => s.Id.ToString() == result.Id);
+            stored.SoundId.Should().Be(fileId);
+            stored.SoundUrl.Should().BeNull();
+            // no server-side multipart upload when a pre-uploaded id is supplied
+            _fileService.Verify(f => f.CreateFromFormFile(
+                It.IsAny<IFormFile>(), It.IsAny<string>(), It.IsAny<FileCategory>()), Times.Never);
+        }
+
+        [Fact]
+        public void Create_WithMissingSoundFileId_Throws()
+        {
+            var owner = EntityBuilder.NewAccount();
+            _context.Accounts.Add(owner);
+            _context.SaveChanges();
+
+            var missingId = Guid.NewGuid();
+            _fileService.Setup(f => f.GetFileById(missingId.ToString()))
+                .Throws(new KeyNotFoundException("Could not find file"));
+
+            var act = () => _service.Create(new CreateSongRequest
+            {
+                Name = "S",
+                Artist = "A",
+                SoundFileId = missingId,
+            }, owner);
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("*does not exist*");
+        }
+
 
         [Fact]
         public void Delete_RemovesSong()
