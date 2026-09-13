@@ -36,7 +36,12 @@ namespace SongAppApi.Helpers
                 Database = database,
                 Username = user,
                 SslMode = SslMode.Require,       // IAM auth requires TLS
-                TrustServerCertificate = true    // learning-grade; harden with VerifyFull + RDS CA
+                TrustServerCertificate = true,   // learning-grade; harden with VerifyFull + RDS CA
+                // Aurora Serverless v2 with min 0 ACU pauses when idle; the first
+                // connection has to resume it (~15-30s), which exceeds the default
+                // 15s connection timeout. Give the resume room.
+                Timeout = 60,
+                CommandTimeout = 60
             }.ConnectionString;
 
             var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
