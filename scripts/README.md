@@ -15,10 +15,19 @@ configuration**. Two consequences shaped the architecture:
 
 ### Run it
 
+Linux / macOS / WSL:
+
 ```bash
 # defaults: CLUSTER_ID=mesmer-dev, AWS_REGION=eu-north-1, DB_NAME=mesmer,
 #           MASTER_USER=mesmeradmin, MIN_ACU=0, MAX_ACU=2
 ./scripts/create-express-db.sh
+```
+
+Windows (PowerShell) — same defaults, override with env vars if needed:
+
+```powershell
+pwsh ./scripts/create-express-db.ps1
+# or: powershell -ExecutionPolicy Bypass -File .\scripts\create-express-db.ps1
 ```
 
 It prints the **endpoint, port, database name, and the Secrets Manager secret
