@@ -16,6 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
     var services = builder.Services;
     var env = builder.Environment;
 
+    // In AWS, pull the JWT signing secret + SMTP credentials from Secrets Manager
+    // into configuration before AppSettings is bound. No-op locally.
+    builder.Configuration.AddAppSecrets();
+
     // Run as a Lambda behind an API Gateway HTTP API when hosted in Lambda,
     // and as normal Kestrel locally. The adapter is a no-op outside Lambda,
     // so `dotnet run` behaviour is unchanged.

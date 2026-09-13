@@ -95,7 +95,9 @@ Resources:
           DB_PORT: !Ref DbPort
           DB_NAME: !Ref DbName
           DB_USER: !Ref DbUser
-          # JWT/SMTP secrets and the recommendation service URL are injected later.
+          # JWT signing secret + SMTP credentials, read from Secrets Manager at
+          # startup (see Program.cs / AppSecretsConfiguration).
+          APP_SECRETS_ARN: !Ref AppSecrets
       Policies:
         # Least-privilege access to the media bucket only — object-level R/W on
         # its contents, plus List on the bucket itself. No wildcard buckets.
@@ -118,6 +120,11 @@ Resources:
               Effect: Allow
               Action: rds-db:connect
               Resource: !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/${DbUser}
+            # Read the app secret (JWT + SMTP) at startup.
+            - Sid: AppSecretsRead
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref AppSecrets
       Events:
         CatchAll:
           Type: HttpApi
@@ -140,6 +147,22 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/mesmer-backend-${Stage}
       RetentionInDays: 14
+
+  # JWT signing secret + SMTP credentials, as a single JSON secret whose keys are
+  # config paths ("AppSettings:Secret", "AppSettings:SmtpHost", ...). RDS-style,
+  # GenerateSecretString generates a strong random JWT secret on CREATE only (so
+  # redeploys never clobber it) and seeds empty SMTP placeholders you fill in via
+  # the console/CLI afterwards. No secret values live in this template.
+  AppSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub mesmer-backend-${Stage}-appsecrets
+      Description: JWT signing secret and SMTP credentials for the Mesmer API.
+      GenerateSecretString:
+        SecretStringTemplate: '{"AppSettings:EmailFrom":"","AppSettings:SmtpHost":"","AppSettings:SmtpPort":"587","AppSettings:SmtpUser":"","AppSettings:SmtpPass":""}'
+        GenerateStringKey: "AppSettings:Secret"
+        PasswordLength: 64
+        ExcludePunctuation: true
 
   # Media bucket: stores song audio/video and profile images that used to live on
   # local disk. Private — clients never read/write it directly except via
@@ -199,3 +222,6 @@ Outputs:
   MediaBucketName:
     Description: Name of the S3 media bucket.
     Value: !Ref MediaBucket
+  AppSecretsArn:
+    Description: ARN of the JWT/SMTP secret — edit it to fill in SMTP values.
+    Value: !Ref AppSecrets
