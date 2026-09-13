@@ -21,8 +21,12 @@
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            //optionsBuilder.UseMySql(connectionString,
-            //    ServerVersion.AutoDetect(connectionString));
+            // In AWS the context is configured in Program.cs with an
+            // NpgsqlDataSource (IAM-auth token provider), so IsConfigured is true
+            // and this is skipped. Locally, fall back to the connection string.
+            if (optionsBuilder.IsConfigured)
+                return;
+
             var connectionString = Configuration.GetConnectionString("SongAppApiDatabase");
             optionsBuilder.UseNpgsql(
                 connectionString,

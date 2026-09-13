@@ -22,7 +22,7 @@ resolve_s3 = true            # let SAM manage the deployment artifact bucket
 capabilities = "CAPABILITY_IAM"   # the stack creates the Lambda execution role
 confirm_changeset = false
 fail_on_empty_changeset = false
-parameter_overrides = "Stage=dev"
+parameter_overrides = "Stage=dev DbHost=mesmer-dev.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbName=postgres DbUser=postgres"
 
 # -----------------------------------------------------------------------------
 # prod
