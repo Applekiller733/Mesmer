@@ -8,10 +8,6 @@ using DotNetEnv;
 using Microsoft.AspNetCore.Http.Features;
 using Amazon.Lambda.AspNetCoreServer.Hosting;
 using Amazon.S3;
-using Amazon;
-using Amazon.RDS.Util;
-using Npgsql;
-using Pgvector.Npgsql;
 
 Env.Load();
 
@@ -25,50 +21,15 @@ var builder = WebApplication.CreateBuilder(args);
     // so `dotnet run` behaviour is unchanged.
     services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
 
-    // Database. When DB_HOST is set (in AWS) connect to Aurora using IAM
-    // authentication — no stored password. An NpgsqlDataSource generates a fresh
-    // RDS auth token as the password on each new physical connection and
-    // refreshes it well before the ~15-minute token expiry. Locally (no DB_HOST)
-    // fall back to DataContext.OnConfiguring, which reads the connection string.
-    var dbHost = builder.Configuration["DB_HOST"];
-    if (!string.IsNullOrWhiteSpace(dbHost))
-    {
-        var dbPort = int.TryParse(builder.Configuration["DB_PORT"], out var parsedPort) ? parsedPort : 5432;
-        var dbName = builder.Configuration["DB_NAME"] ?? "postgres";
-        var dbUser = builder.Configuration["DB_USER"] ?? "postgres";
-        // AWS_REGION is set automatically in Lambda; default for safety.
-        var region = RegionEndpoint.GetBySystemName(
-            builder.Configuration["AWS_REGION"] ?? "eu-north-1");
-
-        var connectionString = new NpgsqlConnectionStringBuilder
-        {
-            Host = dbHost,
-            Port = dbPort,
-            Database = dbName,
-            Username = dbUser,
-            SslMode = SslMode.Require,        // IAM auth requires TLS
-            TrustServerCertificate = true     // learning-grade; use VerifyFull + the RDS CA to harden
-        }.ConnectionString;
-
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-        dataSourceBuilder.UseVector();        // pgvector type mapping on the data source
-        // Token generation is a local signing operation using the Lambda's role
-        // credentials — no network call.
-        dataSourceBuilder.UsePeriodicPasswordProvider(
-            (_, _) => new ValueTask<string>(
-                RDSAuthTokenGenerator.GenerateAuthToken(region, dbHost, dbPort, dbUser)),
-            successRefreshInterval: TimeSpan.FromMinutes(10),
-            failureRefreshInterval: TimeSpan.FromSeconds(5));
-        var dataSource = dataSourceBuilder.Build();
-
-        services.AddSingleton(dataSource);
-        services.AddDbContext<DataContext>(options =>
-            options.UseNpgsql(dataSource, o => o.UseVector()));
-    }
-    else
-    {
-        services.AddDbContext<DataContext>();
-    }
+    // Database. DbConnection decides Aurora-over-IAM (DB_HOST set) vs the local
+    // connection string. The Aurora data source is built once here and reused by
+    // every DbContext instance; the options are applied via AddDbContext so the
+    // DbContextOptions constructor picks them up.
+    var auroraDataSource = DbConnection.BuildAuroraDataSource(builder.Configuration);
+    if (auroraDataSource is not null)
+        services.AddSingleton(auroraDataSource);
+    services.AddDbContext<DataContext>(options =>
+        DbConnection.Apply(options, builder.Configuration, auroraDataSource));
 
     services.AddCors();
     services.AddControllers().AddJsonOptions(x =>
