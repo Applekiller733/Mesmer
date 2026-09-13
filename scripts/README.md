@@ -30,17 +30,21 @@ pwsh ./scripts/create-express-db.ps1
 # or: powershell -ExecutionPolicy Bypass -File .\scripts\create-express-db.ps1
 ```
 
-It prints the **endpoint, port, database name, and the Secrets Manager secret
-ARN** for the managed master credentials. Keep those — Phase 3.4 wires them into
-the Lambda (the app reads the secret at runtime and builds its Npgsql connection
-string; the secret ARN is granted to the execution role).
+It prints the **endpoint, port, and the Secrets Manager secret ARN** for the
+managed master credentials. Keep those — Phase 3.4 wires them into the Lambda
+(the app reads the secret at runtime and builds its Npgsql connection string; the
+secret ARN is granted to the execution role).
 
 ### After it's up
 
-- **Enable pgvector + apply migrations.** Connect with the master credentials and
-  run `CREATE EXTENSION IF NOT EXISTS vector;` (the EF migrations also issue this),
-  then apply the EF Core migrations against the new database. pgvector needs
-  engine ≥ 15.3, which express clusters satisfy.
+- **Pick/create the database.** Express configuration does **not** accept an
+  initial database name, so the cluster comes up with only the default `postgres`
+  database. Either point the app at `postgres`, or connect once with the master
+  credentials and run `CREATE DATABASE mesmer;` for a dedicated one.
+- **Enable pgvector + apply migrations.** In the database you'll use, run
+  `CREATE EXTENSION IF NOT EXISTS vector;` (the EF migrations also issue this),
+  then apply the EF Core migrations. pgvector needs engine ≥ 15.3, which express
+  clusters satisfy.
 - **Auth.** `--manage-master-user-password` gives username/password auth via the
   secret (what the app uses). Express also supports IAM auth if you prefer.
 

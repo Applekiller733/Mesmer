@@ -18,15 +18,16 @@ $MaxAcu     = if ($env:MAX_ACU)     { $env:MAX_ACU }     else { "2" }   # free p
 
 Write-Host "Creating express Aurora cluster '$ClusterId' in $Region..."
 
-# Express configuration auto-provisions networking (no VPC/subnet/SG needed).
-# --manage-master-user-password stores the master password in Secrets Manager so
-# the app can read it at runtime; --database-name creates the initial database.
+# Express configuration auto-provisions networking (no VPC/subnet/SG) and adds
+# the DB instance for you. --manage-master-user-password stores the master
+# password in Secrets Manager so the app can read it at runtime.
+# NOTE: express config does NOT accept --database-name; create the app database
+# after the cluster is available (see below), or use the default 'postgres' DB.
 aws rds create-db-cluster `
   --region $Region `
   --db-cluster-identifier $ClusterId `
   --engine aurora-postgresql `
   --with-express-configuration `
-  --database-name $DbName `
   --master-username $MasterUser `
   --manage-master-user-password `
   --serverless-v2-scaling-configuration "MinCapacity=$MinAcu,MaxCapacity=$MaxAcu"
@@ -49,5 +50,10 @@ Write-Host ""
 Write-Host "Cluster available. Connection details to wire into the app (Phase 3.4):"
 aws rds describe-db-clusters `
   --region $Region --db-cluster-identifier $ClusterId `
-  --query "DBClusters[0].{Endpoint:Endpoint,Port:Port,Database:DatabaseName,SecretArn:MasterUserSecret.SecretArn}" `
+  --query "DBClusters[0].{Endpoint:Endpoint,Port:Port,SecretArn:MasterUserSecret.SecretArn}" `
   --output table
+
+Write-Host ""
+Write-Host "Next: the app can use the default 'postgres' database, or create a"
+Write-Host "dedicated one once, connecting with the master creds from the secret:"
+Write-Host "    CREATE DATABASE $DbName;"
