@@ -30,17 +30,27 @@ pwsh ./scripts/create-express-db.ps1
 # or: powershell -ExecutionPolicy Bypass -File .\scripts\create-express-db.ps1
 ```
 
-It prints the **endpoint, port, and the Secrets Manager secret ARN** for the
-managed master credentials. Keep those — Phase 3.4 wires them into the Lambda
-(the app reads the secret at runtime and builds its Npgsql connection string; the
-secret ARN is granted to the execution role).
+It prints the **endpoint, port, master username, whether IAM auth is enabled,
+and any managed-secret ARN**. Keep those — Phase 3.4 wires them into the Lambda,
+and the auth model (see below) decides exactly how.
+
+### Authentication
+
+Express configuration is minimal by design and rejects `--database-name`,
+`--master-username`, and `--manage-master-user-password`. It creates the cluster
+with the default `postgres` database and master user, defaulting to **IAM
+database authentication** — so there is typically **no password secret**. Phase
+3.4 will connect using an IAM auth token (the execution role gets `rds-db:connect`;
+the app generates a short-lived token and uses it as the Npgsql password over
+TLS). If you'd rather use password auth, that's a `modify-db-cluster
+--master-user-authentication-type password` + set-password follow-up — decide
+once we see the describe output.
 
 ### After it's up
 
-- **Pick/create the database.** Express configuration does **not** accept an
-  initial database name, so the cluster comes up with only the default `postgres`
-  database. Either point the app at `postgres`, or connect once with the master
-  credentials and run `CREATE DATABASE mesmer;` for a dedicated one.
+- **Pick/create the database.** No initial database is created, so the cluster
+  has only the default `postgres` database. Either point the app at `postgres`,
+  or connect once and run `CREATE DATABASE mesmer;` for a dedicated one.
 - **Enable pgvector + apply migrations.** In the database you'll use, run
   `CREATE EXTENSION IF NOT EXISTS vector;` (the EF migrations also issue this),
   then apply the EF Core migrations. pgvector needs engine ≥ 15.3, which express
