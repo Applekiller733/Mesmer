@@ -32,7 +32,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Test
-        run: dotnet test SongAppApi.sln --configuration Release
+        run: dotnet test backend/SongAppApi.sln --configuration Release
 
   deploy-dev:
     needs: test

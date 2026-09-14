@@ -71,14 +71,18 @@ Globals:
 Resources:
   MusicApiFunction:
     Type: AWS::Serverless::Function
+    # Custom build: backend/ holds a solution (SongAppApi.sln) alongside the
+    # test project, and SAM's managed dotnet builder runs `dotnet publish` on
+    # the CodeUri folder — with a .sln present it builds the whole solution
+    # (incl. SongAppApi.Tests, which fails to publish). The Makefile build
+    # method (backend/Makefile, target build-MusicApiFunction) publishes only
+    # SongAppApi.csproj, so the solution can stay next to the projects.
+    Metadata:
+      BuildMethod: makefile
     Properties:
       FunctionName: !Sub mesmer-backend-${Stage}
-      # Monorepo-aware: build the backend folder, not the repo root. SAM's
-      # dotnet builder runs `dotnet publish` in CodeUri; with a .sln present it
-      # would build the whole solution (incl. SongAppApi.Tests, which fails to
-      # publish), so the .sln lives at the repo root and only SongAppApi.csproj
-      # sits directly under backend/ — leaving SAM to build just the API. The
-      # test project stays in the backend/SongAppApi.Tests/ subfolder.
+      # Monorepo-aware: the build runs against the backend folder, not the repo
+      # root. See the Makefile referenced by the Metadata above.
       CodeUri: ./backend/
       # Assembly name of the API project. The Amazon.Lambda.AspNetCoreServer.Hosting
       # adapter uses the ASP.NET Core entry point, so the handler is just the assembly.
