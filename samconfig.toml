@@ -18,7 +18,8 @@ use_container = true          # build inside the Lambda-like container for a fai
 [default.deploy.parameters]
 stack_name = "mesmer-backend-dev"
 region = "eu-north-1"        # Stockholm; change to your chosen region
-resolve_s3 = true            # let SAM manage the deployment artifact bucket
+s3_bucket = "aws-sam-cli-managed-dev-pipeline-r-artifactsbucket-gwatphapijzt"
+s3_prefix = "mesmer-backend-dev"
 capabilities = "CAPABILITY_IAM"   # the stack creates the Lambda execution role
 confirm_changeset = false
 fail_on_empty_changeset = false
@@ -38,7 +39,8 @@ use_container = true
 [prod.deploy.parameters]
 stack_name = "mesmer-backend-prod"
 region = "eu-north-1"
-resolve_s3 = true
+s3_bucket = "aws-sam-cli-managed-prod-pipeline--artifactsbucket-tumynqrwgkjs"
+s3_prefix = "mesmer-backend-prod"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
 fail_on_empty_changeset = false
