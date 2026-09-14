@@ -1,7 +1,9 @@
 name: Deploy backend
 
-# Deploy the Mesmer backend to AWS on pushes to main. Path-filtered so that
-# frontend- or recommendation-service-only changes don't trigger a deploy.
+# On push to main: run tests, deploy to dev automatically, then deploy to prod
+# after a manual approval (configured via the GitHub "prod" environment's
+# required reviewers). Path-filtered so frontend/recommendation-only changes
+# don't trigger a backend deploy.
 on:
   push:
     branches: [main]
@@ -9,10 +11,9 @@ on:
       - 'backend/**'
       - 'template.yaml'
       - 'samconfig.toml'
-  workflow_dispatch: {}   # allow manual runs from the Actions tab
+  workflow_dispatch: {}
 
-# Required for OIDC: the job must be allowed to mint an id-token. Forgetting
-# id-token: write is the most common OIDC setup error.
+# Required for OIDC: the deploy jobs must be able to mint an id-token.
 permissions:
   id-token: write
   contents: read
@@ -22,41 +23,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
-    environment: dev
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
-      - name: Run tests
+      - name: Test
         run: dotnet test backend/SongAppApi.sln --configuration Release
 
+  deploy-dev:
+    needs: test
+    runs-on: ubuntu-latest
+    # Uses the GitHub "dev" environment's secrets (its own bootstrap roles).
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - name: Set up SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # The pipeline execution role created by `sam pipeline bootstrap`
-          # (assumed via the existing GitHub OIDC provider). No stored keys.
           role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
-
       - name: SAM build
         run: sam build --use-container
-
-      - name: SAM deploy
-        # Stack name / region / parameters come from the committed samconfig.toml.
-        # --role-arn passes the CloudFormationExecutionRole (also created by
-        # `sam pipeline bootstrap`) that CloudFormation uses to create resources,
-        # so the assumed pipeline role only needs deploy-orchestration permissions.
+      - name: SAM deploy (dev)
+        # Default samconfig env is dev; --role-arn passes the CloudFormation
+        # execution role from `sam pipeline bootstrap`.
         run: >
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          --role-arn ${{ secrets.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
+
+  deploy-prod:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    # The GitHub "prod" environment gates this job — add required reviewers there
+    # to make prod a manual approval, and give it its own bootstrap-role secrets.
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
+      - name: SAM build
+        run: sam build --use-container
+      - name: SAM deploy (prod)
+        run: >
+          sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
           --role-arn ${{ secrets.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
