@@ -50,11 +50,6 @@ jobs:
         with:
           use-installer: true
 
-      - name: Print OIDC subject (temporary)
-        run: |
-          IDTOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$IDTOKEN" | python3 -c "import sys,base64,json;p=sys.stdin.read().split('.')[1];p+='='*(-len(p)%4);print('SUB =',json.loads(base64.urlsafe_b64decode(p))['sub'])"
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
