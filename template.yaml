@@ -73,9 +73,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub mesmer-backend-${Stage}
-      # Monorepo-aware: build the backend folder, not the repo root. Only
-      # SongAppApi.csproj sits directly under backend/ (the test project lives
-      # in the backend/SongAppApi.Tests/ subfolder), so SAM builds the API.
+      # Monorepo-aware: build the backend folder, not the repo root. SAM's
+      # dotnet builder runs `dotnet publish` in CodeUri; with a .sln present it
+      # would build the whole solution (incl. SongAppApi.Tests, which fails to
+      # publish), so the .sln lives at the repo root and only SongAppApi.csproj
+      # sits directly under backend/ — leaving SAM to build just the API. The
+      # test project stays in the backend/SongAppApi.Tests/ subfolder.
       CodeUri: ./backend/
       # Assembly name of the API project. The Amazon.Lambda.AspNetCoreServer.Hosting
       # adapter uses the ASP.NET Core entry point, so the handler is just the assembly.
