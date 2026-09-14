@@ -50,18 +50,13 @@ jobs:
         with:
           use-installer: true
 
-      - name: Print OIDC subject (temporary)
-        run: |
-          IDTOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$IDTOKEN" | python3 -c "import sys,base64,json;p=sys.stdin.read().split('.')[1];p+='='*(-len(p)%4);print('SUB =',json.loads(base64.urlsafe_b64decode(p))['sub'])"
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
       - name: SAM build
-        run: sam build --use-container
+        run: sam build --use-container --mount-with WRITE
       - name: SAM deploy (dev)
         # Default samconfig env is dev; --role-arn passes the CloudFormation
         # execution role from `sam pipeline bootstrap`.
@@ -91,7 +86,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
       - name: SAM build
-        run: sam build --use-container
+        run: sam build --use-container --mount-with WRITE
       - name: SAM deploy (prod)
         run: >
           sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
