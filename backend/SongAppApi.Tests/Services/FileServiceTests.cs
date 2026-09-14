@@ -1,9 +1,14 @@
+using System.Net;
+using Amazon.S3;
+using Amazon.S3.Model;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using SongAppApi.Authorization;
 using SongAppApi.Helpers;
 using SongAppApi.Helpers.Enumerators;
+using SongAppApi.Models.Files;
 using SongAppApi.Services;
 using SongAppApi.Tests.Common;
 using Xunit;
@@ -12,34 +17,43 @@ namespace SongAppApi.Tests.Services
 {
     public class FileServiceTests : IDisposable
     {
-        private readonly string _workingDir;
-        private readonly string _originalCwd;
+        private const string Bucket = "test-media-bucket";
+
         private readonly DataContext _context;
+        private readonly Mock<IAmazonS3> _s3 = new();
         private readonly FileService _service;
 
         public FileServiceTests()
         {
-            _originalCwd = Directory.GetCurrentDirectory();
-            _workingDir = Path.Combine(Path.GetTempPath(), "fs-tests-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_workingDir);
-            Directory.SetCurrentDirectory(_workingDir);
-
             _context = TestDbContextFactory.Create();
             var mapper = TestMapperFactory.Create(_context);
+
+            _s3.Setup(s => s.PutObjectAsync(
+                    It.IsAny<PutObjectRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PutObjectResponse());
+
             _service = new FileService(
                 _context,
                 Mock.Of<IJwtUtils>(),
                 mapper,
                 TestSettings.AppSettings(),
-                TestSettings.FileUploadSettings());
+                TestSettings.FileUploadSettings(),
+                _s3.Object,
+                Configuration());
         }
 
         public void Dispose()
         {
             _context.Dispose();
-            Directory.SetCurrentDirectory(_originalCwd);
-            try { Directory.Delete(_workingDir, recursive: true); } catch { /* best effort */ }
         }
+
+        private static IConfiguration Configuration() =>
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["MEDIA_BUCKET_NAME"] = Bucket
+                })
+                .Build();
 
         private static IFormFile MakeFormFile(string fileName, byte[] content)
         {
@@ -56,7 +70,7 @@ namespace SongAppApi.Tests.Services
                 });
             return mock.Object;
         }
-        
+
 
         [Fact]
         public void Constructor_EmptyAllowedExtensions_Throws()
@@ -71,14 +85,30 @@ namespace SongAppApi.Tests.Services
             var act = () => new FileService(
                 _context, Mock.Of<IJwtUtils>(),
                 TestMapperFactory.Create(_context),
-                TestSettings.AppSettings(), bad);
+                TestSettings.AppSettings(), bad,
+                _s3.Object, Configuration());
 
             act.Should().Throw<InvalidOperationException>();
         }
 
+        [Fact]
+        public void Constructor_MissingBucketName_Throws()
+        {
+            var emptyConfig = new ConfigurationBuilder().Build();
+
+            var act = () => new FileService(
+                _context, Mock.Of<IJwtUtils>(),
+                TestMapperFactory.Create(_context),
+                TestSettings.AppSettings(), TestSettings.FileUploadSettings(),
+                _s3.Object, emptyConfig);
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("*MEDIA_BUCKET_NAME*");
+        }
+
 
         [Fact]
-        public void CreateFromFormFile_ValidAudio_Persists()
+        public void CreateFromFormFile_ValidAudio_UploadsAndPersists()
         {
             var file = MakeFormFile("song.mp3", new byte[] { 1, 2, 3 });
 
@@ -86,21 +116,28 @@ namespace SongAppApi.Tests.Services
 
             result.Should().NotBeNull();
             result.Extension.Should().Be("mp3");
-            File.Exists(result.FilePath).Should().BeTrue();
+            // FilePath now holds the S3 object key, not a local path.
+            result.FilePath.Should().StartWith("Songs/Audio/");
+            result.FilePath.Should().EndWith(".mp3");
             _context.Files.Any(f => f.Id == result.Id).Should().BeTrue();
+
+            _s3.Verify(s => s.PutObjectAsync(
+                It.Is<PutObjectRequest>(r => r.BucketName == Bucket && r.Key == result.FilePath),
+                It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
         public void CreateFromFormFile_FilenameIsSanitised()
         {
             // the service replaces the original filename with a GUID-based safe
-            // name, we assert the file lands at a different path than the input.
+            // key, so the stored key must not carry the attacker-controlled name.
             var file = MakeFormFile("../../../malicious.mp3", new byte[] { 1 });
 
             var result = _service.CreateFromFormFile(file, "Songs/Audio", FileCategory.Audio);
 
-            Path.GetFileName(result.FilePath).Should().NotBe("malicious.mp3");
-            Path.GetFileName(result.FilePath).Should().EndWith(".mp3");
+            result.FilePath.Should().NotContain("malicious");
+            result.FilePath.Should().StartWith("Songs/Audio/");
+            result.FilePath.Should().EndWith(".mp3");
         }
 
         [Fact]
@@ -127,11 +164,10 @@ namespace SongAppApi.Tests.Services
         [Fact]
         public void CreateFromFormFile_TooLarge_Throws()
         {
-            var bigPayload = new byte[1]; // mock the size separately so we don't allocate 50MB
             var mock = new Mock<IFormFile>();
             mock.Setup(f => f.FileName).Returns("big.mp3");
             mock.Setup(f => f.Length).Returns(51L * 1024 * 1024);
-            // CopyTo never called because size check throws first
+            // CopyTo never called because the size check throws first
             var act = () => _service.CreateFromFormFile(
                 mock.Object, "Songs/Audio", FileCategory.Audio);
 
@@ -183,16 +219,93 @@ namespace SongAppApi.Tests.Services
 
 
         [Fact]
-        public void VerifyExistingDirectory_True()
+        public void GetPresignedDownloadUrl_ReturnsSignedUrl()
         {
-            _service.VerifyExistingDirectory(_workingDir).Should().BeTrue();
+            var file = MakeFormFile("a.mp3", new byte[] { 1 });
+            var saved = _service.CreateFromFormFile(file, "Songs/Audio", FileCategory.Audio);
+
+            const string signed = "https://s3.example.com/presigned";
+            _s3.Setup(s => s.GetPreSignedURL(
+                    It.Is<GetPreSignedUrlRequest>(r => r.BucketName == Bucket && r.Key == saved.FilePath)))
+                .Returns(signed);
+
+            var url = _service.GetPresignedDownloadUrl(saved);
+
+            url.Should().Be(signed);
+        }
+
+
+        [Fact]
+        public void PresignUpload_ValidAudio_ReturnsPutUrlAndKey()
+        {
+            const string putUrl = "https://s3.example.com/put";
+            _s3.Setup(s => s.GetPreSignedURL(
+                    It.Is<GetPreSignedUrlRequest>(r =>
+                        r.BucketName == Bucket && r.Verb == HttpVerb.PUT)))
+                .Returns(putUrl);
+
+            var result = _service.PresignUpload(FileCategory.Audio, "song.mp3");
+
+            result.Url.Should().Be(putUrl);
+            result.Key.Should().StartWith("Songs/Audio/");
+            result.Key.Should().EndWith(".mp3");
+            result.ExpiresAtUtc.Should().BeAfter(DateTime.UtcNow);
         }
 
         [Fact]
-        public void VerifyExistingDirectory_False()
+        public void PresignUpload_DisallowedExtension_Throws()
         {
-            _service.VerifyExistingDirectory(
-                Path.Combine(_workingDir, "does-not-exist")).Should().BeFalse();
+            var act = () => _service.PresignUpload(FileCategory.Audio, "evil.exe");
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("*not allowed*");
+        }
+
+        [Fact]
+        public void ConfirmUpload_Valid_PersistsRow()
+        {
+            var metadata = new GetObjectMetadataResponse();
+            metadata.Headers.ContentLength = 1024;
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    Bucket, "Songs/Audio/abc.mp3", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(metadata);
+
+            var result = _service.ConfirmUpload("Songs/Audio/abc.mp3", "song.mp3", FileCategory.Audio);
+
+            result.FilePath.Should().Be("Songs/Audio/abc.mp3");
+            result.Extension.Should().Be("mp3");
+            _context.Files.Any(f => f.Id == result.Id).Should().BeTrue();
+        }
+
+        [Fact]
+        public void ConfirmUpload_TooLarge_DeletesAndThrows()
+        {
+            var metadata = new GetObjectMetadataResponse();
+            metadata.Headers.ContentLength = 51L * 1024 * 1024; // over the 50 MB audio limit
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(metadata);
+            _s3.Setup(s => s.DeleteObjectAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new DeleteObjectResponse());
+
+            var act = () => _service.ConfirmUpload("Songs/Audio/big.mp3", "big.mp3", FileCategory.Audio);
+
+            act.Should().Throw<InvalidOperationException>().WithMessage("*too large*");
+            _s3.Verify(s => s.DeleteObjectAsync(
+                Bucket, "Songs/Audio/big.mp3", It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public void ConfirmUpload_ObjectMissing_Throws()
+        {
+            _s3.Setup(s => s.GetObjectMetadataAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new AmazonS3Exception("not found") { StatusCode = HttpStatusCode.NotFound });
+
+            var act = () => _service.ConfirmUpload("Songs/Audio/missing.mp3", "x.mp3", FileCategory.Audio);
+
+            act.Should().Throw<KeyNotFoundException>();
         }
     }
 }

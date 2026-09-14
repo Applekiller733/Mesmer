@@ -60,8 +60,27 @@ namespace SongAppApi.Services
             song.CreatedAt = DateTime.UtcNow;
             song.Upvotes = 0;
 
-            // handle file upload if present
-            if (request.SoundFile != null && request.SoundFile.Length > 0)
+            // Prefer files already uploaded directly to S3 (presign + confirm
+            // flow), referenced here by id; fall back to the legacy multipart
+            // SoundFile path for small audio sent through the API.
+            if (request.ImageFileId.HasValue)
+            {
+                song.ImageId = RequireFile(request.ImageFileId.Value).Id;
+                song.ImageUrl = null;
+            }
+
+            if (request.VideoFileId.HasValue)
+            {
+                song.VideoId = RequireFile(request.VideoFileId.Value).Id;
+                song.VideoUrl = null;
+            }
+
+            if (request.SoundFileId.HasValue)
+            {
+                song.SoundId = RequireFile(request.SoundFileId.Value).Id;
+                song.SoundUrl = null;
+            }
+            else if (request.SoundFile != null && request.SoundFile.Length > 0)
             {
                 var file = _fileService.CreateFromFormFile(
                     request.SoundFile,
@@ -127,6 +146,21 @@ namespace SongAppApi.Services
                 .FirstOrDefault(s => s.Id == Guid.Parse(songId));
 
             return song?.Sound;
+        }
+
+        // Resolve a referenced file id to its File row, turning a missing file
+        // into a client error (400) rather than a not-found/500.
+        private Entities.File RequireFile(Guid fileId)
+        {
+            try
+            {
+                return _fileService.GetFileById(fileId.ToString());
+            }
+            catch (KeyNotFoundException)
+            {
+                throw new InvalidOperationException(
+                    $"Referenced file '{fileId}' does not exist.");
+            }
         }
 
         private Song getSong(string id)

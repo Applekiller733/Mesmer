@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Mesmer backend (SongAppApi) — ASP.NET Core 8 API on AWS Lambda behind an
+  API Gateway HTTP API, plus the S3 media bucket (Phase 3.1). On the free plan
+  Aurora must use express configuration, which is VPC-less and cannot be created
+  via CloudFormation, so the database is created out of band (see scripts/) and
+  the Lambda stays out of a VPC. The app reads the DB connection from Secrets
+  Manager at runtime (Phase 3.4).
+
+# -----------------------------------------------------------------------------
+# Parameters
+# -----------------------------------------------------------------------------
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Deployment environment. Drives ASPNETCORE_ENVIRONMENT and naming.
+
+  MediaCorsAllowedOrigins:
+    Type: CommaDelimitedList
+    Default: "*"
+    Description: >
+      Origins allowed to talk to the media bucket directly from the browser
+      (presigned uploads/downloads). Defaults to "*" for early development —
+      tighten to your frontend origin(s), e.g. https://app.example.com, before
+      anything real.
+
+  # Aurora express cluster connection (created out of band; see scripts/).
+  DbHost:
+    Type: String
+    Default: ""
+    Description: Aurora express cluster endpoint host. Empty leaves the app on its
+      local connection string (compute-only deploy).
+  DbPort:
+    Type: String
+    Default: "5432"
+    Description: Aurora port.
+  DbName:
+    Type: String
+    Default: postgres
+    Description: Database to connect to (express clusters start with 'postgres').
+  DbUser:
+    Type: String
+    Default: postgres
+    Description: Database user (the express master user, IAM-auth enabled).
+  DbClusterResourceId:
+    Type: String
+    Default: "*"
+    Description: DBClusterResourceId used in the rds-db:connect ARN. "*" works;
+      set the real id to tighten (aws rds describe-db-clusters
+      --query 'DBClusters[0].DbClusterResourceId').
+
+# -----------------------------------------------------------------------------
+# Globals — defaults applied to every AWS::Serverless::Function in this template
+# -----------------------------------------------------------------------------
+Globals:
+  Function:
+    Runtime: dotnet8          # .NET 8 is an LTS managed Lambda runtime (no container packaging needed)
+    MemorySize: 512
+    Timeout: 30               # generous headroom for cold starts; API Gateway itself caps at 29s
+    Architectures:
+      - x86_64
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+Resources:
+  MusicApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub mesmer-backend-${Stage}
+      # Monorepo-aware: build the backend folder, not the repo root. Only
+      # SongAppApi.csproj sits directly under backend/ (the test project lives
+      # in the backend/SongAppApi.Tests/ subfolder), so SAM builds the API.
+      CodeUri: ./backend/
+      # Assembly name of the API project. The Amazon.Lambda.AspNetCoreServer.Hosting
+      # adapter uses the ASP.NET Core entry point, so the handler is just the assembly.
+      Handler: SongAppApi
+      Description: !Sub Mesmer music API (${Stage})
+      Environment:
+        Variables:
+          # Keep the managed runtime out of Development so Swagger/dev-only paths
+          # behave as intended; override per stage as needed.
+          ASPNETCORE_ENVIRONMENT: Production
+          # Name of the media bucket, read by the app to build S3 SDK calls and
+          # presigned URLs.
+          MEDIA_BUCKET_NAME: !Ref MediaBucket
+          # Aurora connection. The app connects with IAM auth (no password) when
+          # DB_HOST is set — see Program.cs.
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_NAME: !Ref DbName
+          DB_USER: !Ref DbUser
+          # JWT signing secret + SMTP credentials, read from Secrets Manager at
+          # startup (see Program.cs / AppSecretsConfiguration).
+          APP_SECRETS_ARN: !Ref AppSecrets
+      Policies:
+        # Least-privilege access to the media bucket only — object-level R/W on
+        # its contents, plus List on the bucket itself. No wildcard buckets.
+        - Statement:
+            - Sid: MediaBucketObjects
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub ${MediaBucket.Arn}/*
+            - Sid: MediaBucketList
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt MediaBucket.Arn
+            # IAM database authentication: allow the function's role to obtain a
+            # connection token for the DbUser on the Aurora cluster.
+            - Sid: RdsIamConnect
+              Effect: Allow
+              Action: rds-db:connect
+              Resource: !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/${DbUser}
+            # Read the app secret (JWT + SMTP) at startup.
+            - Sid: AppSecretsRead
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref AppSecrets
+      Events:
+        CatchAll:
+          Type: HttpApi
+          Properties:
+            # Single catch-all route: API Gateway forwards everything and ASP.NET
+            # Core does its own routing (controllers, [Route] attributes, etc.).
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            # /{proxy+} does not match the bare root path, so map "/" explicitly.
+            Path: /
+            Method: ANY
+
+  # Explicit log group so retention is codified (SAM would otherwise auto-create
+  # one with no retention policy, i.e. logs kept forever).
+  MusicApiFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/mesmer-backend-${Stage}
+      RetentionInDays: 14
+
+  # JWT signing secret + SMTP credentials, as a single JSON secret whose keys are
+  # config paths ("AppSettings:Secret", "AppSettings:SmtpHost", ...). RDS-style,
+  # GenerateSecretString generates a strong random JWT secret on CREATE only (so
+  # redeploys never clobber it) and seeds empty SMTP placeholders you fill in via
+  # the console/CLI afterwards. No secret values live in this template.
+  AppSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub mesmer-backend-${Stage}-appsecrets
+      Description: JWT signing secret and SMTP credentials for the Mesmer API.
+      GenerateSecretString:
+        SecretStringTemplate: '{"AppSettings:EmailFrom":"","AppSettings:SmtpHost":"","AppSettings:SmtpPort":"587","AppSettings:SmtpUser":"","AppSettings:SmtpPass":""}'
+        GenerateStringKey: "AppSettings:Secret"
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  # Media bucket: stores song audio/video and profile images that used to live on
+  # local disk. Private — clients never read/write it directly except via
+  # short-lived presigned URLs the API issues, which is also why CORS is enabled.
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    # Keep the bucket (and its objects) if the stack is deleted — media must not
+    # vanish with an app-stack teardown.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      # Bucket names are globally unique; scope by stage + account + region.
+      BucketName: !Sub mesmer-media-${Stage}-${AWS::AccountId}-${AWS::Region}
+      # No public access whatsoever; presigned URLs carry their own auth.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced   # disable ACLs entirely
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref MediaCorsAllowedOrigins
+            AllowedMethods: [GET, PUT, POST, HEAD]
+            AllowedHeaders: ["*"]
+            # Needed so the browser can read range/etag headers on GETs.
+            ExposedHeaders: [ETag, Content-Length, Content-Range, Accept-Ranges]
+            MaxAge: 3000
+
+  # NOTE: the Aurora PostgreSQL cluster is NOT defined here. On the free plan it
+  # must use express configuration, which is VPC-less and unsupported by
+  # CloudFormation (AWS::RDS::DBCluster has no WithExpressConfiguration). It is
+  # created out of band via scripts/create-express-db.sh, and the Lambda reaches
+  # it (and S3 / Secrets Manager) directly over the internet — no VPC, no NAT,
+  # no VPC endpoints. Phase 3.4 injects its connection details from Secrets
+  # Manager.
+
+# -----------------------------------------------------------------------------
+# Outputs
+# -----------------------------------------------------------------------------
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL of the HTTP API (invoke your endpoints under this).
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  FunctionName:
+    Description: Lambda function name.
+    Value: !Ref MusicApiFunction
+  FunctionArn:
+    Description: Lambda function ARN.
+    Value: !GetAtt MusicApiFunction.Arn
+  MediaBucketName:
+    Description: Name of the S3 media bucket.
+    Value: !Ref MediaBucket
+  AppSecretsArn:
+    Description: ARN of the JWT/SMTP secret — edit it to fill in SMTP values.
+    Value: !Ref AppSecrets

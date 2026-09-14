@@ -6,6 +6,8 @@ using SongAppApi.Services;
 using System.Text.Json.Serialization;
 using DotNetEnv;
 using Microsoft.AspNetCore.Http.Features;
+using Amazon.Lambda.AspNetCoreServer.Hosting;
+using Amazon.S3;
 
 Env.Load();
 
@@ -14,7 +16,25 @@ var builder = WebApplication.CreateBuilder(args);
     var services = builder.Services;
     var env = builder.Environment;
 
-    services.AddDbContext<DataContext>();
+    // In AWS, pull the JWT signing secret + SMTP credentials from Secrets Manager
+    // into configuration before AppSettings is bound. No-op locally.
+    builder.Configuration.AddAppSecrets();
+
+    // Run as a Lambda behind an API Gateway HTTP API when hosted in Lambda,
+    // and as normal Kestrel locally. The adapter is a no-op outside Lambda,
+    // so `dotnet run` behaviour is unchanged.
+    services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
+
+    // Database. DbConnection decides Aurora-over-IAM (DB_HOST set) vs the local
+    // connection string. The Aurora data source is built once here and reused by
+    // every DbContext instance; the options are applied via AddDbContext so the
+    // DbContextOptions constructor picks them up.
+    var auroraDataSource = DbConnection.BuildAuroraDataSource(builder.Configuration);
+    if (auroraDataSource is not null)
+        services.AddSingleton(auroraDataSource);
+    services.AddDbContext<DataContext>(options =>
+        DbConnection.Apply(options, builder.Configuration, auroraDataSource));
+
     services.AddCors();
     services.AddControllers().AddJsonOptions(x =>
     {
@@ -33,7 +53,7 @@ var builder = WebApplication.CreateBuilder(args);
                       ?? "http://localhost:8000";
         client.BaseAddress = new Uri(baseUrl);
 
-        // Reasonable timeout — the Python query is normally <100ms, but if
+        // Reasonable timeout ï¿½ the Python query is normally <100ms, but if
         // the service is hung we don't want to block .NET requests forever.
         client.Timeout = TimeSpan.FromSeconds(10);
     });
@@ -67,6 +87,11 @@ var builder = WebApplication.CreateBuilder(args);
     });
 
 
+    // AWS S3 client for media storage. The default constructor resolves the
+    // region and credentials from the environment (AWS_REGION + the execution
+    // role in Lambda; your profile/SSO locally).
+    services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client());
+
     // configure DI for application services
     services.AddScoped<IJwtUtils, JwtUtils>();
     services.AddScoped<IAccountService, AccountService>();
@@ -81,11 +106,16 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 // migrate any database changes on startup (includes initial db creation)
-using (var scope = app.Services.CreateScope())
-{
-    var dataContext = scope.ServiceProvider.GetRequiredService<DataContext>();
-    dataContext.Database.Migrate();
-}
+// Disabled for AWS Lambda: running migrations during startup executes on every
+// cold start, requires the database to be reachable at init, can race across
+// concurrent cold starts, and a failed migration would brick all invocations.
+// Migrations are applied out-of-band instead (e.g. an EF migration bundle in CI
+// or a one-off task). Re-enable for local development if desired.
+//using (var scope = app.Services.CreateScope())
+//{
+//    var dataContext = scope.ServiceProvider.GetRequiredService<DataContext>();
+//    dataContext.Database.Migrate();
+//}
 
 // configure HTTP request pipeline
 {

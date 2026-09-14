@@ -15,6 +15,13 @@ namespace SongAppApi.Models.Songs
 
         public string? SoundUrl { get; set; }
 
+        // Ids of files already uploaded straight to S3 (presign + confirm flow).
+        // When set, these take precedence over the *Url fields / SoundFile.
+        public Guid? ImageFileId { get; set; }
+        public Guid? VideoFileId { get; set; }
+        public Guid? SoundFileId { get; set; }
+
+        // Legacy path: small audio uploaded through the API as multipart.
         public IFormFile? SoundFile { get; set; }
     }
 }

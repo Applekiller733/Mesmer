@@ -12,8 +12,18 @@
         public DbSet<Friendship> Friendships { get; set;}
         public DbSet<PlaylistInvitation> PlaylistInvitations { get; set; }
 
-        private readonly IConfiguration Configuration;
+        private readonly IConfiguration? Configuration;
 
+        // Used by the app (Program.cs) and the design-time factory: the connection
+        // is fully configured in the options (Aurora IAM data source or local
+        // connection string), so OnConfiguring is a no-op.
+        public DataContext(DbContextOptions<DataContext> options)
+            : base(options)
+        {
+        }
+
+        // Retained for the test subclass, which passes an IConfiguration and
+        // overrides OnConfiguring to use the in-memory provider.
         public DataContext(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -21,8 +31,11 @@
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            //optionsBuilder.UseMySql(connectionString,
-            //    ServerVersion.AutoDetect(connectionString));
+            // Configured via DbContextOptions (both app paths) -> nothing to do.
+            // Only the legacy IConfiguration constructor falls through to here.
+            if (optionsBuilder.IsConfigured || Configuration is null)
+                return;
+
             var connectionString = Configuration.GetConnectionString("SongAppApiDatabase");
             optionsBuilder.UseNpgsql(
                 connectionString,
