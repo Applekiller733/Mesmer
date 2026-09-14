@@ -61,7 +61,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
       - name: SAM build
-        run: sam build --use-container
+        run: sam build --use-container --mount-with WRITE
       - name: SAM deploy (dev)
         # Default samconfig env is dev; --role-arn passes the CloudFormation
         # execution role from `sam pipeline bootstrap`.
@@ -91,7 +91,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
       - name: SAM build
-        run: sam build --use-container
+        run: sam build --use-container --mount-with WRITE
       - name: SAM deploy (prod)
         run: >
           sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
