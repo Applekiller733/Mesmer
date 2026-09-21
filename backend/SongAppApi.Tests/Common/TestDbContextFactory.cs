@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using SongAppApi.Entities;
 using SongAppApi.Helpers;
 using File = SongAppApi.Entities.File;
@@ -10,33 +9,19 @@ namespace SongAppApi.Tests.Common
     {
         public static DataContext Create()
         {
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:SongAppApiDatabase"] = "InMemory"
-                })
-                .Build();
+            var options = new DbContextOptionsBuilder<DataContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
 
-            return new TestDataContext(config, Guid.NewGuid().ToString());
+            return new TestDataContext(options);
         }
     }
 
     public class TestDataContext : DataContext
     {
-        private readonly string _dbName;
-
-        public TestDataContext(IConfiguration configuration, string dbName)
-            : base(configuration)
+        public TestDataContext(DbContextOptions<DataContext> options)
+            : base(options)
         {
-            _dbName = dbName;
-        }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            if (!optionsBuilder.IsConfigured)
-            {
-                optionsBuilder.UseInMemoryDatabase(_dbName);
-            }
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

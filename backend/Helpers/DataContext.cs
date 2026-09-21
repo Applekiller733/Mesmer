@@ -12,35 +12,15 @@
         public DbSet<Friendship> Friendships { get; set;}
         public DbSet<PlaylistInvitation> PlaylistInvitations { get; set; }
 
-        private readonly IConfiguration? Configuration;
-
-        // Used by the app (Program.cs) and the design-time factory: the connection
-        // is fully configured in the options (Aurora IAM data source or local
-        // connection string), so OnConfiguring is a no-op.
+        // Single constructor: the connection is fully configured in the options
+        // (Aurora IAM data source or local connection string) by Program.cs and the
+        // design-time factory. EF Core needs an unambiguous constructor to activate
+        // the context through DI, so there is exactly one — the legacy
+        // IConfiguration constructor was removed. Tests build in-memory options and
+        // pass them here (see TestDbContextFactory).
         public DataContext(DbContextOptions<DataContext> options)
             : base(options)
         {
-        }
-
-        // Retained for the test subclass, which passes an IConfiguration and
-        // overrides OnConfiguring to use the in-memory provider.
-        public DataContext(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            // Configured via DbContextOptions (both app paths) -> nothing to do.
-            // Only the legacy IConfiguration constructor falls through to here.
-            if (optionsBuilder.IsConfigured || Configuration is null)
-                return;
-
-            var connectionString = Configuration.GetConnectionString("SongAppApiDatabase");
-            optionsBuilder.UseNpgsql(
-                connectionString,
-                o => o.UseVector()
-            );
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
