@@ -17,7 +17,8 @@ namespace SongAppApi.Entities
         public Role Role { get; set; }
         public string? VerificationToken { get; set; }
         public DateTime? Verified { get; set; }
-        public bool IsVerified => Verified.HasValue || PasswordReset.HasValue;
+        // public bool IsVerified => Verified.HasValue || PasswordReset.HasValue;
+        public bool IsVerified = true;
         public string? ResetToken { get; set; }
         public DateTime? ResetTokenExpires { get; set; }
         public DateTime? PasswordReset { get; set; }
