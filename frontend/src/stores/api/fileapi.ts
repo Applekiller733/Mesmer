@@ -66,11 +66,20 @@ export async function apiconfirmupload(
         headers: { "Content-Type": "application/json", ...authHeader(url) },
         body: JSON.stringify({ key, fileName, category }),
     });
-    const data = await response.json();
+    // On success the API returns the new file id as a bare string, which
+    // ASP.NET serializes as text/plain (not JSON) — so read it as text.
+    // Error responses are JSON ({ message }); parse those for the message.
+    const body = await response.text();
     if (!response.ok) {
-        throw new Error(data.message || "Failed to confirm upload");
+        let message = "Failed to confirm upload";
+        try {
+            message = JSON.parse(body).message || message;
+        } catch {
+            // Non-JSON error body; fall back to the default message.
+        }
+        throw new Error(message);
     }
-    return data; // the file id (string)
+    return body.trim(); // the file id (string)
 }
 
 // Convenience: run the full presign -> PUT -> confirm dance and return the file
