@@ -17,6 +17,27 @@ STATUS_FAILED = 3
 DB_BATCH_SIZE = 100
 MBID_CHUNK_FOR_AB = MAX_BATCH_SIZE  # 25 — AB's hard cap
 
+# Terminal failure markers written to EnrichmentSource. A song carrying one has
+# been permanently attempted at that stage; excluding it keeps a fixed-size
+# LIMIT batch from being clogged by songs that can never progress. Because all
+# stages share the single EnrichmentSource column and overwrite it, the librosa
+# markers (the last stage) are fully terminal: every upstream stage must exclude
+# them too, otherwise a song that failed AB and then failed librosa would
+# ping-pong between the stages (each seeing only the other's marker) forever.
+MBID_FAILURE_MARKER = "mb:no-match"
+AB_FAILURE_MARKERS = ("ab:no-data", "ab:malformed")
+LIBROSA_TERMINAL_MARKERS = ("librosa:extract-failed", "librosa:no-audio")
+
+
+def _exclude_sources_clause(markers) -> str:
+    # Build an "AND (EnrichmentSource IS NULL OR EnrichmentSource NOT IN (...))"
+    # fragment from a list of marker strings (safe: markers are code constants).
+    quoted = ", ".join("'%s'" % m for m in markers)
+    return (
+        'AND ("EnrichmentSource" IS NULL '
+        'OR "EnrichmentSource" NOT IN (%s))' % quoted
+    )
+
 
 def setup_logging(verbose: bool):
     level = logging.DEBUG if verbose else logging.INFO
@@ -27,25 +48,44 @@ def setup_logging(verbose: bool):
 
 
 # find MBIDs for songs that don't have them yet, and mark songs with no match as Failed
-def resolve_mbids_for_pending_songs(limit: int = DB_BATCH_SIZE) -> int:
+def resolve_mbids_for_pending_songs(
+    limit: int = DB_BATCH_SIZE, retry: bool = False,
+) -> int:
     """
     Iterate songs that need MBID resolution. Sets MusicBrainzId on each.
     Songs without a match end up with MusicBrainzId still NULL but get
     EnrichmentStatus=Failed and EnrichmentSource set to "mb:no-match".
+
+    A no-match song keeps MusicBrainzId NULL and status Failed, so without
+    excluding it, it would keep matching this selector forever — with a
+    fixed LIMIT and no ordering it can fill every batch and starve genuinely
+    pending songs. So by default we skip songs already marked 'mb:no-match'.
+    Pass retry=True to re-attempt them (e.g. after MusicBrainz coverage
+    improves). Ordering by "Id" keeps batches deterministic.
 
     Returns number of songs updated (whether resolved or marked failed).
     """
     log = logging.getLogger("resolve_mbids")
     updated = 0
 
+    # Skip songs already attempted to a terminal state unless retrying: our own
+    # no-match, plus the fully-terminal librosa markers (a no-MBID song with
+    # audio can reach librosa, which would overwrite the source — excluding
+    # those markers stops the mbid<->librosa ping-pong).
+    source_filter = "" if retry else _exclude_sources_clause(
+        (MBID_FAILURE_MARKER,) + LIBROSA_TERMINAL_MARKERS
+    )
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT "Id", "Name", "Artist"
                 FROM "Songs"
                 WHERE "MusicBrainzId" IS NULL
                   AND "EnrichmentStatus" IN (%s, %s)
+                  {source_filter}
+                ORDER BY "Id"
                 LIMIT %s
                 """,
                 (STATUS_PENDING, STATUS_FAILED, limit),
@@ -94,16 +134,19 @@ def resolve_mbids_for_pending_songs(limit: int = DB_BATCH_SIZE) -> int:
 def enrich_features_for_resolved_songs(
     limit: int = DB_BATCH_SIZE,
     reanalyze: bool = False,
+    retry: bool = False,
 ) -> int:
     """
     Fetch AcousticBrainz lowlevel data for songs that have an MBID but
     no features yet.
 
-    Default mode: skip songs that already have RawFeatures. Reanalyze
-    mode: also re-fetch AB data for previously AB-enriched songs and
-    rebuild their RawFeatures with the current schema. Use after a
-    schema bump (new features added) so existing rows aren't left on
-    stale vectors.
+    Default mode: skip songs that already have RawFeatures, and skip
+    songs previously marked as permanent AB failures ('ab:no-data' /
+    'ab:malformed') so they don't clog the fixed-size batch. Retry mode
+    (retry=True): also re-attempt those failures. Reanalyze mode: also
+    re-fetch AB data for previously AB-enriched songs and rebuild their
+    RawFeatures with the current schema. Use after a schema bump (new
+    features added) so existing rows aren't left on stale vectors.
 
     Returns number of songs successfully enriched.
     """
@@ -112,15 +155,26 @@ def enrich_features_for_resolved_songs(
 
     if reanalyze:
         # Include previously AB-enriched songs so their RawFeatures get
-        # rebuilt with whatever the current extractor produces.
+        # rebuilt with whatever the current extractor produces. Reanalyze
+        # deliberately re-does everything, so no failure-marker exclusion.
         status_filter: List[int] = [
             STATUS_PENDING, STATUS_FAILED, STATUS_ENRICHED_ACOUSTICBRAINZ,
         ]
         raw_features_filter = ""
+        source_filter = ""
         log.info("Reanalyze mode: including previously AB-enriched songs.")
     else:
         status_filter = [STATUS_PENDING, STATUS_FAILED]
         raw_features_filter = 'AND "RawFeatures" IS NULL'
+        # AB failures (no-data / malformed) keep RawFeatures NULL and status
+        # Failed, so they'd otherwise re-match forever and, with a fixed LIMIT
+        # and no ordering, starve genuinely-pending songs. Also exclude the
+        # librosa terminal markers: a song AB failed then librosa failed carries
+        # a librosa marker now, and without this AB would re-process it
+        # endlessly (the ping-pong). Skip both unless retrying.
+        source_filter = "" if retry else _exclude_sources_clause(
+            AB_FAILURE_MARKERS + LIBROSA_TERMINAL_MARKERS
+        )
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -129,7 +183,9 @@ def enrich_features_for_resolved_songs(
                 FROM "Songs"
                 WHERE "MusicBrainzId" IS NOT NULL
                   {raw_features_filter}
+                  {source_filter}
                   AND "EnrichmentStatus" = ANY(%s::int[])
+                ORDER BY "Id"
                 LIMIT %s
             """
             cur.execute(query, (status_filter, limit))
@@ -221,6 +277,13 @@ def main():
              "update so existing rows get rebuilt with the current "
              "feature set. Implies that Stage B re-fetches AB docs.",
     )
+    parser.add_argument(
+        "--retry", action="store_true",
+        help="Re-attempt songs previously marked as permanent failures "
+             "(mb:no-match / ab:no-data / ab:malformed). By default these "
+             "are skipped so they don't clog the fixed-size batch; use "
+             "this to retry them (e.g. after upstream coverage improves).",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -229,13 +292,13 @@ def main():
 
     if not args.skip_mbid:
         log.info("=== Stage A: resolving MBIDs ===")
-        n = resolve_mbids_for_pending_songs(limit=args.limit)
+        n = resolve_mbids_for_pending_songs(limit=args.limit, retry=args.retry)
         log.info("Stage A done. Updated %d rows.", n)
 
     if not args.skip_acousticbrainz:
         log.info("=== Stage B: fetching AcousticBrainz features ===")
         n = enrich_features_for_resolved_songs(
-            limit=args.limit, reanalyze=args.reanalyze,
+            limit=args.limit, reanalyze=args.reanalyze, retry=args.retry,
         )
         log.info("Stage B done. Enriched %d songs.", n)
 

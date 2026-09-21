@@ -54,6 +54,16 @@ Parameters:
       set the real id to tighten (aws rds describe-db-clusters
       --query 'DBClusters[0].DbClusterResourceId').
 
+  RecommendationBaseUrl:
+    Type: String
+    Default: ""
+    Description: >
+      Base URL of the recommendation microservice API, deployed as its own stack
+      (mesmer-recommendation-<stage>). Read into RecommendationService:BaseUrl.
+      Empty leaves the backend on its localhost default. Set it in
+      samconfig.toml parameter_overrides once the recommendation stack's
+      ApiBaseUrl output is known.
+
 # -----------------------------------------------------------------------------
 # Globals — defaults applied to every AWS::Serverless::Function in this template
 # -----------------------------------------------------------------------------
@@ -105,6 +115,9 @@ Resources:
           # JWT signing secret + SMTP credentials, read from Secrets Manager at
           # startup (see Program.cs / AppSecretsConfiguration).
           APP_SECRETS_ARN: !Ref AppSecrets
+          # Recommendation microservice API base URL (its own SAM stack). Bound
+          # to RecommendationService:BaseUrl in Program.cs (__ -> :).
+          RecommendationService__BaseUrl: !Ref RecommendationBaseUrl
       Policies:
         # Least-privilege access to the media bucket only — object-level R/W on
         # its contents, plus List on the bucket itself. No wildcard buckets.

@@ -37,9 +37,9 @@ def setup_logging(verbose: bool):
     warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 
 def enrich_failed_songs_with_audio(
-    limit: int = DB_BATCH_SIZE, reanalyze: bool = False,
+    limit: int = DB_BATCH_SIZE, reanalyze: bool = False, retry: bool = False,
 ) -> int:
-    
+
     #fallback cu librosa pt piesele cu status Failed
     log = logging.getLogger("librosa_enricher")
     enriched = 0
@@ -47,18 +47,33 @@ def enrich_failed_songs_with_audio(
 
     if reanalyze:
         status_filter = [STATUS_FAILED, STATUS_ENRICHED_LIBROSA]
+        source_filter = ""
         log.info("Reanalyze mode: including previously librosa-enriched songs.")
     else:
         status_filter = [STATUS_FAILED]
+        # Librosa failures (extraction failed / no audio) keep status Failed,
+        # so without excluding them they'd re-match every run — re-downloading
+        # and re-extracting the same audio, and with a fixed LIMIT and no
+        # ordering, starving songs not yet attempted. Skip librosa's own
+        # failure markers unless retrying. (ab:*/mb:* markers stay selectable
+        # so the AcousticBrainz -> librosa handoff still works.)
+        source_filter = (
+            "" if retry
+            else "AND (\"EnrichmentSource\" IS NULL OR "
+                 "\"EnrichmentSource\" NOT IN "
+                 "('librosa:extract-failed', 'librosa:no-audio'))"
+        )
 
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT "Id", "Name", "Artist"
                 FROM "Songs"
                 WHERE "EnrichmentStatus" = ANY(%s::int[])
                   AND "SoundId" IS NOT NULL
+                  {source_filter}
+                ORDER BY "Id"
                 LIMIT %s
                 """,
                 (status_filter, limit),
@@ -78,6 +93,20 @@ def enrich_failed_songs_with_audio(
 
             with fetch_audio_to_tempfile(str(song_id)) as audio_path:
                 if audio_path is None:
+                    # Mark a terminal state so this song stops re-matching the
+                    # selector on every run (otherwise it loops forever,
+                    # re-downloading audio). Status stays Failed, consistent
+                    # with the extract-failed path below.
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            UPDATE "Songs"
+                            SET "EnrichmentSource" = 'librosa:no-audio'
+                            WHERE "Id" = %s
+                            """,
+                            (song_id,),
+                        )
+                        conn.commit()
                     log.warning("    audio fetch returned no path; skipping")
                     continue
 
@@ -133,6 +162,14 @@ def main():
          "etc.) so existing rows are refreshed with the new logic.",
     )
     parser.add_argument(
+        "--retry", action="store_true",
+        help="Re-attempt songs previously marked as permanent librosa "
+             "failures (librosa:extract-failed / librosa:no-audio). By "
+             "default these are skipped so they don't clog the fixed-size "
+             "batch; use this to retry them (e.g. after fixing audio access "
+             "or the extractor).",
+    )
+    parser.add_argument(
         "--limit", type=int, default=DB_BATCH_SIZE,
         help="Max songs to process per run (default %(default)s)",
     )
@@ -143,7 +180,9 @@ def main():
     log = logging.getLogger("main")
 
     log.info("Librosa enrichment")
-    enrich_failed_songs_with_audio(limit=args.limit, reanalyze=args.reanalyze)
+    enrich_failed_songs_with_audio(
+        limit=args.limit, reanalyze=args.reanalyze, retry=args.retry,
+    )
     log.info(
         "All done. Run again to process more, or proceed to Stage 4 "
         "(fit scaler + PCA)."

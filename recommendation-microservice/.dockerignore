@@ -1,0 +1,11 @@
+# Keep the image slim: exclude offline analysis outputs, caches, and local env.
+__pycache__/
+*.pyc
+*.pdf
+*.png
+*.csv
+.env
+env.template
+cmds.txt
+# SAM build scratch (in case the dir is ever a Docker context during a SAM build)
+.aws-sam/

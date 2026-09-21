@@ -1,0 +1,50 @@
+# SAM CLI configuration for the recommendation microservice stack. Deploy dev
+# with `sam deploy` and prod with `sam deploy --config-env prod`.
+#
+# Db* values mirror the backend stack's samconfig.toml (same shared Aurora
+# cluster). DotnetApiBaseUrl and MusicBrainzUserAgentContact are intentionally
+# left empty here — fill them in before relying on the librosa audio fallback /
+# to be polite to MusicBrainz (see README).
+version = 0.1
+
+# -----------------------------------------------------------------------------
+# dev (default)
+# -----------------------------------------------------------------------------
+[default.global.parameters]
+stack_name = "mesmer-recommendation-dev"
+
+[default.build.parameters]
+cached = true
+parallel = true
+use_container = true          # faithful manylinux wheels for the zip API build
+
+[default.deploy.parameters]
+stack_name = "mesmer-recommendation-dev"
+region = "eu-north-1"
+resolve_s3 = true             # SAM-managed bucket for the zip artifact
+resolve_image_repos = true    # SAM-managed ECR repo for the batch image
+capabilities = "CAPABILITY_NAMED_IAM"   # stack creates named roles (scheduler)
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = "Stage=dev DbHost=mesmer-dev.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-757JB2FAFLQ66SIFSA5ALDE2YM DbName=postgres DbUser=postgres DotnetApiBaseUrl='' MusicBrainzUserAgentContact=''"
+
+# -----------------------------------------------------------------------------
+# prod
+# -----------------------------------------------------------------------------
+[prod.global.parameters]
+stack_name = "mesmer-recommendation-prod"
+
+[prod.build.parameters]
+cached = true
+parallel = true
+use_container = true
+
+[prod.deploy.parameters]
+stack_name = "mesmer-recommendation-prod"
+region = "eu-north-1"
+resolve_s3 = true
+resolve_image_repos = true
+capabilities = "CAPABILITY_NAMED_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = "Stage=prod DbHost=mesmer-prod.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-QCRGIODPFBEZ7F4HBN6VNPDSHA DbName=postgres DbUser=postgres DotnetApiBaseUrl='' MusicBrainzUserAgentContact=''"

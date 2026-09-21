@@ -1,0 +1,74 @@
+name: Deploy recommendation microservice
+
+# On push to main touching the microservice: deploy to dev automatically, then
+# prod after a manual approval (the GitHub "prod" environment's required
+# reviewers). Separate from the backend deploy so the two ship independently.
+#
+# NOTE: this stack builds and pushes a container image, so the OIDC pipeline
+# role (AWS_PIPELINE_EXECUTION_ROLE_ARN) must be allowed to push to ECR:
+# ecr:GetAuthorizationToken, ecr:CreateRepository (for --resolve-image-repos),
+# ecr:BatchCheckLayerAvailability, ecr:InitiateLayerUpload, ecr:UploadLayerPart,
+# ecr:CompleteLayerUpload, ecr:PutImage. Add them to the bootstrap role if the
+# first deploy fails on an ECR permission.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'recommendation-microservice/**'
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-recommendation-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: recommendation-microservice
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
+      - name: SAM build
+        run: sam build --use-container --mount-with WRITE
+      - name: SAM deploy (dev)
+        run: >
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          --role-arn ${{ secrets.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
+
+  deploy-prod:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PIPELINE_EXECUTION_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
+      - name: SAM build
+        run: sam build --use-container --mount-with WRITE
+      - name: SAM deploy (prod)
+        run: >
+          sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
+          --role-arn ${{ secrets.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}

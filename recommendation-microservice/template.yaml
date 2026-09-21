@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Mesmer recommendation microservice — a Python FastAPI recommendation API on AWS
+  Lambda behind an API Gateway HTTP API, plus a scheduled background pipeline
+  (EventBridge Scheduler -> container Lambda) that enriches songs and writes their
+  PcaFeatures embeddings. Deployed as its own stack, independent of the backend.
+
+  Same free-plan posture as the backend stack: VPC-less, reaching the shared
+  Aurora PostgreSQL "express" cluster over the internet with IAM database auth
+  (no stored DB password). The API ships as a small zip Lambda (serving deps
+  only); the batch job ships as a container image because librosa/scipy/sklearn
+  can't fit a zip. See recommendation-microservice/README for details.
+
+# -----------------------------------------------------------------------------
+# Parameters
+# -----------------------------------------------------------------------------
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+    Description: Deployment environment; drives resource naming.
+
+  # Aurora express cluster connection (created out of band; see ../scripts/).
+  # Reuse the same values as the backend stack's samconfig.toml.
+  DbHost:
+    Type: String
+    Default: ""
+    Description: Aurora express cluster endpoint host. Empty leaves the services
+      on their local DATABASE_URL (compute-only deploy).
+  DbPort:
+    Type: String
+    Default: "5432"
+  DbName:
+    Type: String
+    Default: postgres
+  DbUser:
+    Type: String
+    Default: postgres
+    Description: Database user (IAM-auth enabled master user).
+  DbClusterResourceId:
+    Type: String
+    Default: "*"
+    Description: DBClusterResourceId used in the rds-db:connect ARN. "*" works;
+      set the real id to tighten.
+
+  DotnetApiBaseUrl:
+    Type: String
+    Default: ""
+    Description: Base URL of the .NET backend HTTP API (its stack's ApiBaseUrl
+      output). Used by the batch job's librosa stage to fetch song audio.
+
+  ScheduleExpression:
+    Type: String
+    Default: "rate(6 hours)"
+    Description: >
+      How often the background pipeline runs. Default every 6 hours keeps the
+      batch Lambda well under the 400,000 GB-s/month always-free tier (see
+      README cost notes). Use a longer interval to be safe, or a cron(...)
+      expression for a fixed time.
+  ScheduleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: Turn the scheduled pipeline on or off without deleting it.
+
+  # MusicBrainz politeness — set a real contact so MB doesn't throttle/block.
+  MusicBrainzUserAgentApp:
+    Type: String
+    Default: "MesmerRecommender"
+  MusicBrainzUserAgentVersion:
+    Type: String
+    Default: "0.1"
+  MusicBrainzUserAgentContact:
+    Type: String
+    Default: ""
+    Description: Contact email/URL for the MusicBrainz User-Agent. Strongly
+      recommended — the code's placeholder risks rate-limiting.
+
+  BatchLimitLibrosa:
+    Type: String
+    Default: "120"
+    Description: Max songs the librosa stage processes per run (also bounded by
+      the remaining Lambda time). Lower it if runs approach the 15-min timeout.
+
+# -----------------------------------------------------------------------------
+# Globals
+# -----------------------------------------------------------------------------
+Globals:
+  Function:
+    Architectures:
+      - x86_64
+
+# -----------------------------------------------------------------------------
+# Conditions
+# -----------------------------------------------------------------------------
+Conditions:
+  # Scope rds-db:connect to the real cluster id when provided, else allow "*".
+  HasClusterId: !Not [!Equals [!Ref DbClusterResourceId, "*"]]
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+Resources:
+
+  # --- Online recommendation API (zip Lambda + HTTP API) ---------------------
+  RecommendationApiFunction:
+    Type: AWS::Serverless::Function
+    # Custom build (Makefile): installs only the slim serving deps
+    # (requirements-api.txt) and copies the three serving modules, instead of
+    # SAM's managed builder installing the full heavy requirements.txt.
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub mesmer-recommendation-api-${Stage}
+      CodeUri: ./
+      Handler: api.handler
+      Runtime: python3.11
+      MemorySize: 512
+      Timeout: 30
+      Description: !Sub Mesmer recommendation API (${Stage})
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_NAME: !Ref DbName
+          DB_USER: !Ref DbUser
+      Policies:
+        - Statement:
+            - Sid: RdsIamConnect
+              Effect: Allow
+              Action: rds-db:connect
+              Resource: !If
+                - HasClusterId
+                - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/${DbUser}
+                - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DbUser}
+      Events:
+        CatchAll:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+
+  RecommendationApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/mesmer-recommendation-api-${Stage}
+      RetentionInDays: 14
+
+  # --- Background pipeline (container Lambda) --------------------------------
+  BatchFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: .
+      DockerTag: !Ref Stage
+    Properties:
+      FunctionName: !Sub mesmer-recommendation-batch-${Stage}
+      PackageType: Image
+      ImageConfig:
+        Command: ["batch_handler.handler"]
+      MemorySize: 1536
+      Timeout: 900
+      # Only one run at a time — overlapping runs would double audio downloads.
+      ReservedConcurrentExecutions: 1
+      EphemeralStorage:
+        Size: 2048        # /tmp for audio temp files + numba/matplotlib caches
+      Description: !Sub Mesmer recommendation background pipeline (${Stage})
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_NAME: !Ref DbName
+          DB_USER: !Ref DbUser
+          DOTNET_API_BASE_URL: !Ref DotnetApiBaseUrl
+          MUSICBRAINZ_USER_AGENT_APP: !Ref MusicBrainzUserAgentApp
+          MUSICBRAINZ_USER_AGENT_VERSION: !Ref MusicBrainzUserAgentVersion
+          MUSICBRAINZ_USER_AGENT_CONTACT: !Ref MusicBrainzUserAgentContact
+          LIBROSA_LIMIT: !Ref BatchLimitLibrosa
+      Policies:
+        - Statement:
+            - Sid: RdsIamConnect
+              Effect: Allow
+              Action: rds-db:connect
+              Resource: !If
+                - HasClusterId
+                - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/${DbUser}
+                - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DbUser}
+
+  BatchFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/mesmer-recommendation-batch-${Stage}
+      RetentionInDays: 14
+
+  # Role EventBridge Scheduler assumes to invoke the batch function.
+  BatchScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub mesmer-recommendation-sched-${Stage}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeBatchFunction
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt BatchFunction.Arn
+
+  BatchSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub mesmer-recommendation-batch-${Stage}
+      Description: Runs the Mesmer song-processing pipeline on a schedule.
+      ScheduleExpression: !Ref ScheduleExpression
+      State: !Ref ScheduleState
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt BatchFunction.Arn
+        RoleArn: !GetAtt BatchScheduleRole.Arn
+
+# -----------------------------------------------------------------------------
+# Outputs
+# -----------------------------------------------------------------------------
+Outputs:
+  ApiBaseUrl:
+    Description: >
+      Base URL of the recommendation API. Set this as RecommendationBaseUrl in
+      the backend stack's samconfig.toml so the backend can reach it.
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  ApiFunctionArn:
+    Value: !GetAtt RecommendationApiFunction.Arn
+  BatchFunctionArn:
+    Value: !GetAtt BatchFunction.Arn
