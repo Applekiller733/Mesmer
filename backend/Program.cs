@@ -139,4 +139,15 @@ var app = builder.Build();
     app.MapControllers();
 }
 
-app.Run("http://localhost:4000");
+// When hosted in Lambda, AddAWSLambdaHosting replaces Kestrel with a server that
+// exposes no IServerAddressesFeature, so passing a URL to app.Run() throws
+// ("Changing the URL is not supported...") and crashes every cold start. Only set
+// the explicit local URL when running under Kestrel; in Lambda the runtime ignores
+// listen addresses, so start with no URL.
+var runningInLambda = !string.IsNullOrEmpty(
+    Environment.GetEnvironmentVariable("AWS_LAMBDA_RUNTIME_API"));
+
+if (runningInLambda)
+    app.Run();
+else
+    app.Run("http://localhost:4000");
