@@ -26,7 +26,7 @@ resolve_image_repos = true    # SAM-managed ECR repo for the batch image
 capabilities = "CAPABILITY_NAMED_IAM"   # stack creates named roles (scheduler)
 confirm_changeset = false
 fail_on_empty_changeset = false
-parameter_overrides = "Stage=dev DbHost=mesmer-dev.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-757JB2FAFLQ66SIFSA5ALDE2YM DbName=postgres DbUser=postgres DotnetApiBaseUrl='' MusicBrainzUserAgentContact=''"
+parameter_overrides = "Stage=dev DbHost=mesmer-dev.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-757JB2FAFLQ66SIFSA5ALDE2YM DbName=postgres DbUser=postgres DotnetApiBaseUrl='https://roizb8t5sh.execute-api.eu-north-1.amazonaws.com' MusicBrainzUserAgentContact='zelu2728@gmail.com'"
 
 # -----------------------------------------------------------------------------
 # prod
@@ -47,4 +47,4 @@ resolve_image_repos = true
 capabilities = "CAPABILITY_NAMED_IAM"
 confirm_changeset = false
 fail_on_empty_changeset = false
-parameter_overrides = "Stage=prod DbHost=mesmer-prod.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-QCRGIODPFBEZ7F4HBN6VNPDSHA DbName=postgres DbUser=postgres DotnetApiBaseUrl='' MusicBrainzUserAgentContact=''"
+parameter_overrides = "Stage=prod DbHost=mesmer-prod.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-QCRGIODPFBEZ7F4HBN6VNPDSHA DbName=postgres DbUser=postgres DotnetApiBaseUrl='https://n8643uijf2.execute-api.eu-north-1.amazonaws.com/' MusicBrainzUserAgentContact='zelu2728@gmail.com'"
