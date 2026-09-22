@@ -116,7 +116,7 @@ Resources:
       FunctionName: !Sub mesmer-recommendation-api-${Stage}
       CodeUri: ./
       Handler: api.handler
-      Runtime: python3.11
+      Runtime: python3.12
       MemorySize: 512
       Timeout: 30
       Description: !Sub Mesmer recommendation API (${Stage})
