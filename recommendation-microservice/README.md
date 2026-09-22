@@ -162,8 +162,15 @@ Caveats:
   run `fit_and_transform.py --fit` **locally** instead (no timeout).
 - If the committed `.pkl` fail to unpickle under the pinned scikit-learn version,
   refit once with that version so a fresh model is written.
-- The batch function has reserved concurrency 1, so a manual invoke fired while a
-  scheduled run is in progress is throttled — just retry once it's idle.
+- Overlapping runs (a manual invoke while a scheduled run is mid-flight) just
+  waste work — the pipeline is idempotent. To hard-prevent it, set the
+  `BatchReservedConcurrency` stack parameter to 1 (needs an account Lambda
+  concurrency limit high enough to reserve; off by default so the stack deploys
+  on low-limit/new accounts).
+- **Architecture:** the batch image is built for your Docker host's architecture.
+  On Apple Silicon / ARM, set the `FunctionArchitecture` stack parameter to
+  `arm64` (in `samconfig.toml` `parameter_overrides`), or the arm64 image won't
+  match an x86_64 function and the stack CREATE fails.
 
 ### Free-plan note on the model bucket
 

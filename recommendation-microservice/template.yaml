@@ -84,13 +84,34 @@ Parameters:
     Description: Max songs the librosa stage processes per run (also bounded by
       the remaining Lambda time). Lower it if runs approach the 15-min timeout.
 
+  FunctionArchitecture:
+    Type: String
+    Default: x86_64
+    AllowedValues: [x86_64, arm64]
+    Description: >
+      CPU architecture for both Lambdas. It must match the architecture the
+      batch container image is built for — which is your Docker host's
+      architecture, since `docker build` builds natively. On Apple Silicon / ARM
+      set this to arm64, otherwise the arm64 image won't match an x86_64 function
+      and the stack CREATE fails.
+
+  BatchReservedConcurrency:
+    Type: Number
+    Default: -1
+    Description: >
+      Reserved concurrency for the batch function (prevents overlapping runs).
+      -1 leaves it UNSET (the default). Reserving any concurrency requires >=100
+      unreserved to remain account-wide, which a low new-account Lambda limit
+      (often 10) cannot satisfy — so it is off by default and the stack deploys.
+      Raise your account concurrency limit, then set this to 1 to re-enable.
+
 # -----------------------------------------------------------------------------
 # Globals
 # -----------------------------------------------------------------------------
 Globals:
   Function:
     Architectures:
-      - x86_64
+      - !Ref FunctionArchitecture
 
 # -----------------------------------------------------------------------------
 # Conditions
@@ -98,6 +119,8 @@ Globals:
 Conditions:
   # Scope rds-db:connect to the real cluster id when provided, else allow "*".
   HasClusterId: !Not [!Equals [!Ref DbClusterResourceId, "*"]]
+  # Only set reserved concurrency when a non-negative value was provided.
+  UseReservedConcurrency: !Not [!Equals [!Ref BatchReservedConcurrency, -1]]
 
 # -----------------------------------------------------------------------------
 # Resources
@@ -167,8 +190,13 @@ Resources:
         Command: ["batch_handler.handler"]
       MemorySize: 1536
       Timeout: 900
-      # Only one run at a time — overlapping runs would double audio downloads.
-      ReservedConcurrentExecutions: 1
+      # Prevent overlapping runs (double audio downloads) when the account's
+      # Lambda concurrency limit allows reserving concurrency. Off by default —
+      # see the BatchReservedConcurrency parameter.
+      ReservedConcurrentExecutions: !If
+        - UseReservedConcurrency
+        - !Ref BatchReservedConcurrency
+        - !Ref AWS::NoValue
       EphemeralStorage:
         Size: 2048        # /tmp for audio temp files + numba/matplotlib caches
       Description: !Sub Mesmer recommendation background pipeline (${Stage})
@@ -207,12 +235,13 @@ Resources:
               Action: s3:ListBucket
               Resource: !GetAtt ModelBucket.Arn
 
-  # Tiny private bucket holding the fitted scaler/PCA (.pkl, a few KB). Retained
-  # on stack deletion so a refit isn't lost. Only the batch function touches it.
+  # Tiny private bucket holding the fitted scaler/PCA (.pkl, a few KB). Not
+  # retained: the models are regenerable (a refit rewrites them, and the image's
+  # baked-in .pkl are the fallback), and retaining it orphans the bucket on a
+  # failed create, colliding with the next attempt. Only the batch function
+  # touches it.
   ModelBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub mesmer-recommendation-models-${Stage}-${AWS::AccountId}-${AWS::Region}
       PublicAccessBlockConfiguration:
