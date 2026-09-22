@@ -88,10 +88,84 @@ Everything is within AWS free tiers except **ECR storage** for the batch image
 lifecycle policy applied. The `rate(6 hours)` default keeps the batch Lambda under
 the 400,000 GB-s/month always-free tier. IAM auth avoids Secrets Manager charges.
 
-### Model artifacts
+## Manually running the pipeline on the stack
 
-`scaler_schema2.pkl` / `pca_schema2.pkl` are baked into the image and only **read**
-by the scheduled transform. Re-fitting (`--fit`, which *writes* new `.pkl`) is a
-local op: re-fit, commit the new `.pkl`, redeploy. If the committed `.pkl` fail to
-unpickle under the pinned scikit-learn version, re-fit locally with that version
-and commit the result.
+The scheduled batch Lambda is also directly invokable, and its behaviour is
+driven by the invocation event — so you can trigger a run on demand, run a single
+stage, or force a retry/reanalyze without waiting for the schedule. Empty event =
+the normal scheduled run.
+
+```bash
+FN=mesmer-recommendation-batch-dev            # or -prod
+R=eu-north-1
+
+# Full pipeline now (same as the schedule)
+aws lambda invoke --region $R --function-name $FN --payload '{}' /dev/stdout
+
+# Only the AcousticBrainz stage, larger batch
+aws lambda invoke --region $R --function-name $FN \
+  --payload '{"stages":["ab"],"limits":{"ab":800}}' /dev/stdout
+
+# Retry songs previously marked permanently failed
+aws lambda invoke --region $R --function-name $FN \
+  --payload '{"retry":true}' /dev/stdout
+
+# Reanalyze already-succeeded songs (after an extractor change)
+aws lambda invoke --region $R --function-name $FN \
+  --payload '{"reanalyze":true}' /dev/stdout
+```
+
+Event fields: `action` (`"pipeline"` default | `"fit"`), `stages` (subset of
+`mbid,ab,librosa,transform`), `retry`, `reanalyze`, `limits`
+(`{"mbid":…, "ab":…, "librosa":…}`).
+
+You can also run the CLI scripts **locally against the deployed cluster** (set
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER` + AWS creds for IAM auth, plus
+`DOTNET_API_BASE_URL` for the librosa stage): `python bulkenricher.py`,
+`python librosa_enricher.py`, `python fit_and_transform.py`.
+
+## Fit vs. transform, and when to refit
+
+- **Transform (incremental)** runs on every scheduled batch. It only touches
+  songs that have `RawFeatures` but no `PcaFeatures` yet, applying the *current*
+  model. This is the steady state and is cheap.
+- **Fit / refit** retrains the `StandardScaler` (+ optional PCA) on all enriched
+  songs. **It is never run on the schedule.** Run it explicitly only when the
+  feature schema or extractor changes (or you deliberately want to re-fit on a
+  much larger dataset).
+
+**Refitting recomputes every embedding.** A new model puts vectors in a new
+space, so old and new `PcaFeatures` are not comparable — mixing them would break
+the pgvector similarity search. `run_fit_mode` (`--fit`) therefore retrains and
+**rewrites all songs' `PcaFeatures` in one pass**; never refit and then only
+transform the new songs.
+
+Two ways to refit:
+
+```bash
+# On the stack (model is persisted to the MODEL_BUCKET S3 bucket, and every
+# later transform loads it from there — no redeploy needed):
+aws lambda invoke --region $R --function-name $FN --payload '{"action":"fit"}' /dev/stdout
+
+# Locally against the cluster (equivalent):
+python fit_and_transform.py --fit
+```
+
+Model storage: locally the `.pkl` live next to the script (committed). On AWS,
+`MODEL_BUCKET` (set by the stack) makes a refit write the retrained models to S3;
+every transform loads from S3, falling back to the image's baked-in `.pkl` until
+the first refit. So the committed `.pkl` only seed a brand-new deployment — after
+that, S3 is authoritative and no image redeploy is needed to pick up a refit.
+
+Caveats:
+- A refit must finish within the 900 s Lambda timeout. For a very large catalog,
+  run `fit_and_transform.py --fit` **locally** instead (no timeout).
+- If the committed `.pkl` fail to unpickle under the pinned scikit-learn version,
+  refit once with that version so a fresh model is written.
+- The batch function has reserved concurrency 1, so a manual invoke fired while a
+  scheduled run is in progress is throttled — just retry once it's idle.
+
+### Free-plan note on the model bucket
+
+The `MODEL_BUCKET` holds a few KB of `.pkl` — comfortably inside the S3 free tier;
+it doesn't change the cost picture above.

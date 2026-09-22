@@ -21,6 +21,64 @@ MIN_SAMPLES_FOR_RELIABLE_FIT = 50
 
 UPDATE_BATCH_SIZE = 200
 
+# --- Model artifact storage -------------------------------------------------
+# Locally the .pkl models live next to this script (committed to the repo). On
+# AWS the container filesystem is read-only, so when MODEL_BUCKET is set:
+#   - a refit (run_fit_mode / --fit) writes the retrained scaler+PCA to S3, and
+#   - every transform loads the models from S3 (authoritative once a refit has
+#     run), falling back to the image's baked-in .pkl until the first refit.
+# This keeps the model that produced the stored embeddings and the model used
+# for new songs in lockstep without redeploying the image.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_BUCKET = os.getenv("MODEL_BUCKET")
+MODEL_PREFIX = os.getenv("MODEL_PREFIX", "models").strip("/")
+
+
+def _writable_model_dir() -> str:
+    # /tmp is the only writable path on Lambda; use the script dir locally.
+    return "/tmp" if MODEL_BUCKET else BASE_DIR
+
+
+def _s3_key(name: str) -> str:
+    return f"{MODEL_PREFIX}/{name}" if MODEL_PREFIX else name
+
+
+def _resolve_model_file(name: str) -> Optional[str]:
+    # Return a local path to load `name` from: prefer S3 (authoritative once a
+    # refit has run), else the baked/committed copy next to this script.
+    if MODEL_BUCKET:
+        import boto3
+        import botocore
+        dest = os.path.join("/tmp", name)
+        try:
+            boto3.client("s3").download_file(MODEL_BUCKET, _s3_key(name), dest)
+            return dest
+        except botocore.exceptions.ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code not in ("404", "NoSuchKey", "NotFound"):
+                # A real error (e.g. 403) — don't silently use a stale baked
+                # model that may not match the stored embeddings.
+                raise
+            # Not uploaded yet: fall through to the baked artifact.
+    baked = os.path.join(BASE_DIR, name)
+    return baked if os.path.exists(baked) else None
+
+
+def _upload_model_file(name: str, local_path: str):
+    if MODEL_BUCKET:
+        import boto3
+        boto3.client("s3").upload_file(local_path, MODEL_BUCKET, _s3_key(name))
+
+
+def _remove_model_file(name: str):
+    # Remove a stale artifact both locally and (if configured) from S3.
+    local = os.path.join(_writable_model_dir(), name)
+    if os.path.exists(local):
+        os.remove(local)
+    if MODEL_BUCKET:
+        import boto3
+        boto3.client("s3").delete_object(Bucket=MODEL_BUCKET, Key=_s3_key(name))
+
 
 def setup_logging(verbose: bool):
     level = logging.DEBUG if verbose else logging.INFO
@@ -192,26 +250,37 @@ def transform_to_storage_space(
 
 def save_models(scaler: StandardScaler, pca: Optional[PCA]):
     log = logging.getLogger("fit")
-    log.info("Saving scaler -> %s", SCALER_PATH)
-    joblib.dump(scaler, SCALER_PATH)
+
+    scaler_local = os.path.join(_writable_model_dir(), SCALER_PATH)
+    log.info("Saving scaler -> %s", scaler_local)
+    joblib.dump(scaler, scaler_local)
+    _upload_model_file(SCALER_PATH, scaler_local)
 
     if pca is None:
-        if os.path.exists(PCA_PATH):
-            os.remove(PCA_PATH)
-            log.info("Removed stale %s (no-PCA mode active)", PCA_PATH)
+        _remove_model_file(PCA_PATH)
+        log.info("No-PCA mode: removed any stale %s", PCA_PATH)
     else:
-        log.info("Saving pca -> %s", PCA_PATH)
-        joblib.dump(pca, PCA_PATH)
+        pca_local = os.path.join(_writable_model_dir(), PCA_PATH)
+        log.info("Saving pca -> %s", pca_local)
+        joblib.dump(pca, pca_local)
+        _upload_model_file(PCA_PATH, pca_local)
+
+    if MODEL_BUCKET:
+        log.info("Models persisted to s3://%s/%s/", MODEL_BUCKET, MODEL_PREFIX)
 
 
 def load_models() -> Tuple[StandardScaler, Optional[PCA]]:
-    if not os.path.exists(SCALER_PATH):
+    scaler_path = _resolve_model_file(SCALER_PATH)
+    if scaler_path is None:
         raise FileNotFoundError(
-            f"Missing {SCALER_PATH}. Run with --fit first to train the "
-            "scaler on enriched data."
+            f"Missing {SCALER_PATH} (checked "
+            f"{'s3://' + MODEL_BUCKET + ' and ' if MODEL_BUCKET else ''}"
+            f"{BASE_DIR}). Run with --fit first to train the scaler on "
+            "enriched data."
         )
-    scaler = joblib.load(SCALER_PATH)
-    pca = joblib.load(PCA_PATH) if os.path.exists(PCA_PATH) else None
+    scaler = joblib.load(scaler_path)
+    pca_path = _resolve_model_file(PCA_PATH)
+    pca = joblib.load(pca_path) if pca_path else None
     return scaler, pca
 
 

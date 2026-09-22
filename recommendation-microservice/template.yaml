@@ -183,6 +183,9 @@ Resources:
           MUSICBRAINZ_USER_AGENT_VERSION: !Ref MusicBrainzUserAgentVersion
           MUSICBRAINZ_USER_AGENT_CONTACT: !Ref MusicBrainzUserAgentContact
           LIBROSA_LIMIT: !Ref BatchLimitLibrosa
+          # Durable store for the retrained scaler/PCA (refit). The API doesn't
+          # need it — it reads embeddings straight from the DB.
+          MODEL_BUCKET: !Ref ModelBucket
       Policies:
         - Statement:
             - Sid: RdsIamConnect
@@ -192,6 +195,35 @@ Resources:
                 - HasClusterId
                 - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/${DbUser}
                 - !Sub arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DbUser}
+            - Sid: ModelBucketObjects
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub ${ModelBucket.Arn}/*
+            - Sid: ModelBucketList
+              Effect: Allow
+              Action: s3:ListBucket
+              Resource: !GetAtt ModelBucket.Arn
+
+  # Tiny private bucket holding the fitted scaler/PCA (.pkl, a few KB). Retained
+  # on stack deletion so a refit isn't lost. Only the batch function touches it.
+  ModelBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub mesmer-recommendation-models-${Stage}-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
   BatchFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -246,3 +278,6 @@ Outputs:
     Value: !GetAtt RecommendationApiFunction.Arn
   BatchFunctionArn:
     Value: !GetAtt BatchFunction.Arn
+  ModelBucketName:
+    Description: S3 bucket holding the fitted scaler/PCA models (written by refit).
+    Value: !Ref ModelBucket
