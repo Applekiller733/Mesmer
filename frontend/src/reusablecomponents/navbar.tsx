@@ -59,10 +59,10 @@ export default function Navbar() {
         <ThemeProvider theme={darkTheme}>
             <AppBar position="static" className="navbar">
                 <Toolbar className="navbar-toolbar">
-                    <Typography variant="h6" className="navbar-title">
+                    {/* <Typography variant="h6" className="navbar-title">
                         Mesmer
-                    </Typography>
-
+                    </Typography> */}
+                    <img src="/mesmer.svg" alt="Mesmer" height={64} />
                     <Box className="navbar-links">
                         <Button color="inherit" className="navbar-button" href="/">
                             Home
