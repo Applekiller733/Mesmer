@@ -99,3 +99,13 @@ async def health():
     except Exception as e:
         logger.exception("Health check failed: %s", e)
         raise HTTPException(status_code=503, detail="Service unavailable")
+
+
+# AWS Lambda entry point. Mangum adapts the ASGI app to the Lambda/API Gateway
+# proxy event contract. Locally the app is still served with `uvicorn api:app`.
+try:
+    from mangum import Mangum
+
+    handler = Mangum(app)
+except ImportError:  # mangum isn't needed for local uvicorn runs
+    handler = None

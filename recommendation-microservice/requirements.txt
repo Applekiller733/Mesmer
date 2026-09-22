@@ -1,0 +1,28 @@
+# Full dependency set: the batch pipeline (container image) plus the serving path.
+# Also used by the e2e workflow to run the API locally.
+# Versions are pinned; validate against a clean build (CI does `pip install -r`).
+# numpy is held at 1.x for ABI compatibility with the pinned numba/scipy/librosa.
+
+# --- serving path (also in requirements-api.txt) ---
+fastapi==0.115.6
+uvicorn==0.34.0
+mangum==0.19.0
+pydantic==2.10.4
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+numpy==1.26.4
+
+# --- background enrichment / embedding pipeline ---
+scikit-learn==1.5.2
+scipy==1.13.1
+librosa==0.10.2.post1
+numba==0.60.0
+joblib==1.4.2
+soundfile==0.12.1
+audioread==3.0.1
+musicbrainzngs==0.7.1
+requests==2.32.3
+python-dotenv==1.0.1
+
+# --- AWS (RDS IAM auth token generation) ---
+boto3==1.35.90

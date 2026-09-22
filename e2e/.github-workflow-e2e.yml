@@ -73,7 +73,7 @@ jobs:
           python-version: '3.11'
 
       - name: Start recommendation microservice
-        working-directory: recommendation microservice
+        working-directory: recommendation-microservice
         run: |
           pip install -r requirements.txt || pip install fastapi uvicorn pydantic psycopg2-binary scikit-learn librosa
           nohup uvicorn api:app --host 0.0.0.0 --port 8000 > rec.log 2>&1 &

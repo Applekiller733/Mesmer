@@ -1,0 +1,12 @@
+# Slim dependency set for the online recommendation API (zip-based Lambda).
+# Only the serving path: api.py -> recommendation_logic.py -> db.py.
+# NOTE: boto3/botocore are provided by the AWS Lambda python runtime, so they are
+# deliberately NOT bundled here (keeps the zip small, under the 250 MB limit).
+# For DB access db.py imports boto3 lazily only when DB_HOST is set.
+fastapi==0.115.6
+mangum==0.19.0
+pydantic==2.10.4
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+numpy==1.26.4
+python-dotenv==1.0.1

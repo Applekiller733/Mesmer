@@ -1,0 +1,51 @@
+name: PR validation (recommendation)
+
+# Quality gate for the recommendation microservice: compile the Python, validate
+# the SAM template, and build the batch container image so Dockerfile/dependency
+# breakage is caught before merge. No AWS credentials, no deploy.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'recommendation-microservice/**'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: recommendation-microservice
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile Python sources
+        run: python -m py_compile *.py
+
+      - name: Install serving deps (import smoke test)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-api.txt
+      - name: Import API (Mangum handler builds)
+        env:
+          # db.py reads a DB target at import; a dummy URL is enough (no connect).
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/none"
+        run: python -c "import api; assert api.handler is not None, 'Mangum handler missing'"
+
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: Validate SAM template
+        run: sam validate --lint
+
+      - name: Build batch image (Dockerfile + full deps)
+        run: docker build -t mesmer-recommendation-batch:pr .
