@@ -21,7 +21,12 @@ use_container = true          # faithful manylinux wheels for the zip API build
 [default.deploy.parameters]
 stack_name = "mesmer-recommendation-dev"
 region = "eu-north-1"
-resolve_s3 = true             # SAM-managed bucket for the zip artifact
+# Reuse the backend's pipeline artifacts bucket (same one its samconfig pins)
+# instead of resolve_s3, so the CI pipeline execution role — scoped to just this
+# bucket — can upload the zip artifact. resolve_s3 would need a different managed
+# bucket the CI role can't create/write.
+s3_bucket = "aws-sam-cli-managed-dev-pipeline-r-artifactsbucket-gwatphapijzt"
+s3_prefix = "mesmer-recommendation-dev"
 resolve_image_repos = true    # SAM-managed ECR repo for the batch image
 capabilities = "CAPABILITY_NAMED_IAM"   # stack creates named roles (scheduler)
 confirm_changeset = false
@@ -42,9 +47,10 @@ use_container = true
 [prod.deploy.parameters]
 stack_name = "mesmer-recommendation-prod"
 region = "eu-north-1"
-resolve_s3 = true
+s3_bucket = "aws-sam-cli-managed-prod-pipeline--artifactsbucket-tumynqrwgkjs"
+s3_prefix = "mesmer-recommendation-prod"
 resolve_image_repos = true
 capabilities = "CAPABILITY_NAMED_IAM"
 confirm_changeset = false
 fail_on_empty_changeset = false
-parameter_overrides = "Stage=prod DbHost=mesmer-prod.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-QCRGIODPFBEZ7F4HBN6VNPDSHA DbName=postgres DbUser=postgres DotnetApiBaseUrl='https://n8643uijf2.execute-api.eu-north-1.amazonaws.com/' MusicBrainzUserAgentContact='zelu2728@gmail.com'"
+parameter_overrides = "Stage=prod DbHost=mesmer-prod.cluster-cf00ui82uhlm.eu-north-1.rds.amazonaws.com DbClusterResourceId=cluster-QCRGIODPFBEZ7F4HBN6VNPDSHA DbName=postgres DbUser=postgres DotnetApiBaseUrl='https://n8643uijf2.execute-api.eu-north-1.amazonaws.com' MusicBrainzUserAgentContact='zelu2728@gmail.com'"
