@@ -42,7 +42,9 @@ var builder = WebApplication.CreateBuilder(args);
         x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
     services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
-    services.AddSwaggerGen();
+    // Swagger is a development aid; skipping it in Lambda trims cold start work.
+    if (env.IsDevelopment())
+        services.AddSwaggerGen();
 
     // configure strongly typed settings object
     services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
@@ -119,9 +121,12 @@ var app = builder.Build();
 
 // configure HTTP request pipeline
 {
-    // generated swagger json and swagger ui middleware
-    app.UseSwagger();
-    app.UseSwaggerUI(x => x.SwaggerEndpoint("/swagger/v1/swagger.json", ".NET Sign-up and Verification API"));
+    // generated swagger json and swagger ui middleware (Development only)
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI(x => x.SwaggerEndpoint("/swagger/v1/swagger.json", ".NET Sign-up and Verification API"));
+    }
 
     // global cors policy
     app.UseCors(x => x

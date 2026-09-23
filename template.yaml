@@ -70,7 +70,7 @@ Parameters:
 Globals:
   Function:
     Runtime: dotnet8          # .NET 8 is an LTS managed Lambda runtime (no container packaging needed)
-    MemorySize: 512
+    MemorySize: 1024
     Timeout: 30               # generous headroom for cold starts; API Gateway itself caps at 29s
     Architectures:
       - x86_64

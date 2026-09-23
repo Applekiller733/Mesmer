@@ -1,10 +1,11 @@
 import logging
 from typing import List, Optional
 
+import psycopg2
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict
 
-from db import get_connection
+from db import get_shared_connection, reset_shared_connection
 from recommendation_logic import recommend_for_playlist
 
 logging.basicConfig(
@@ -19,6 +20,18 @@ logger = logging.getLogger("api")
 app = FastAPI(title="Recommendation Service")
 
 DEFAULT_TOP_K = 5
+
+
+def _with_db_retry(fn):
+    # The shared connection may have been closed server-side (idle timeout or
+    # an Aurora pause). Reconnect and retry once.
+    try:
+        return fn()
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        logger.warning("Shared DB connection was lost, reconnecting and retrying once.")
+        reset_shared_connection()
+        return fn()
+
 
 # DTOs
 class SongRecommendationDTO(BaseModel):
@@ -53,9 +66,8 @@ async def get_recommendation_ids(request: PlaylistRecommendationDTO):
             return RecommendationResponse(recommendedIds=[])
 
         song_ids = [s.id for s in request.songs]
-        recommended = recommend_for_playlist(
-            song_ids=song_ids,
-            top_k=DEFAULT_TOP_K,
+        recommended = _with_db_retry(
+            lambda: recommend_for_playlist(song_ids=song_ids, top_k=DEFAULT_TOP_K)
         )
 
         if not recommended:
@@ -77,8 +89,8 @@ async def get_recommendation_ids(request: PlaylistRecommendationDTO):
 
 @app.get("/health")
 async def health():
-    try:
-        with get_connection() as conn:
+    def count_songs():
+        with get_shared_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -88,7 +100,10 @@ async def health():
                     FROM "Songs"
                     """
                 )
-                with_pca, total = cur.fetchone()
+                return cur.fetchone()
+
+    try:
+        with_pca, total = _with_db_retry(count_songs)
 
         return {
             "status": "ok",

@@ -140,7 +140,7 @@ Resources:
       CodeUri: ./
       Handler: api.handler
       Runtime: python3.12
-      MemorySize: 512
+      MemorySize: 1024
       Timeout: 30
       Description: !Sub Mesmer recommendation API (${Stage})
       Environment:

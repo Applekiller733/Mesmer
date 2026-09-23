@@ -70,6 +70,49 @@ def get_connection(dict_cursor: bool = False):
     return conn
 
 
+# Module-level connection reused across warm Lambda invocations by the serving
+# API. Lambda runs one request per execution environment at a time, so a single
+# connection is safe. Batch scripts keep using get_connection().
+_shared_conn = None
+
+# Postgres closes the shared connection after this long idle. A frozen warm
+# Lambda would otherwise hold it open indefinitely, and Aurora Serverless v2
+# does not auto-pause while a connection is open.
+_SHARED_IDLE_TIMEOUT_MS = 60000
+
+
+def _open_shared_connection():
+    options = f"-c idle_session_timeout={_SHARED_IDLE_TIMEOUT_MS}"
+    if DB_HOST:
+        conn = psycopg2.connect(**_iam_connection_kwargs(), options=options)
+    else:
+        conn = psycopg2.connect(DB_URL, options=options)
+    register_vector(conn)
+    return conn
+
+
+def get_shared_connection():
+    # The IAM token is only checked at connect time, so its ~15 min expiry does
+    # not affect a connection that is already open.
+    global _shared_conn
+    if _shared_conn is None or _shared_conn.closed:
+        _shared_conn = _open_shared_connection()
+    return _shared_conn
+
+
+def reset_shared_connection():
+    # Drop a connection the server has closed (idle timeout, Aurora pause).
+    # `.closed` does not detect a server-side disconnect, so callers use this
+    # after catching an OperationalError or InterfaceError.
+    global _shared_conn
+    if _shared_conn is not None:
+        try:
+            _shared_conn.close()
+        except Exception:
+            pass
+    _shared_conn = None
+
+
 def ensure_extension():
     with get_connection() as conn:
         with conn.cursor() as cur:
