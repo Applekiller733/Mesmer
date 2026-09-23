@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from db import get_connection
+from db import get_shared_connection
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def load_playlist_song_metadata(
     if not song_ids:
         return []
 
-    with get_connection() as conn:
+    with get_shared_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -47,7 +47,7 @@ def load_candidate_genres(candidate_ids: List[str]) -> Dict[str, int]:
     if not candidate_ids:
         return {}
 
-    with get_connection() as conn:
+    with get_shared_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -70,7 +70,7 @@ def fetch_top_similar_songs(
     
     exclude = list(exclude_ids) if exclude_ids else []
 
-    with get_connection() as conn:
+    with get_shared_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
